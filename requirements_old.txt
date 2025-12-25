@@ -1,0 +1,9 @@
+langchain>=0.1.0
+langchain-community
+langchain-openai  # 用于调用兼容 OpenAI 协议的 Qwen
+streamlit>=1.30.0
+python-dotenv     # 用于读取 .env
+beautifulsoup4    # 用于网页抓取
+python-docx       # 用于生成 Word 报告
+tiktoken          # 用于计算 token
+google-search-results # 或者 serper

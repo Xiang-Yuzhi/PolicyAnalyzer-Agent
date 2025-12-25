@@ -1,0 +1,11 @@
+policy_agent_v4/
+├── .env                  # [重要] 存放 API Keys，绝对不能上传到 GitHub
+├── .gitignore            # [重要] 告诉 Git 忽略 .env 文件
+├── requirements.txt      # 项目依赖包列表
+├── README.md             # 项目说明文档
+├── app.py                # Streamlit 前端入口（先空着）
+├── config.py             # 配置管理模块（用于安全读取 .env）
+└── core/                 # 核心逻辑包
+    ├── __init__.py
+    ├── ranker.py         # 权威性排序逻辑 (PRD 核心难点)
+    └── utils.py          # 通用工具
