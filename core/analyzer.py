@@ -109,10 +109,10 @@ JSON 结构如下：
 4. "chat_bullets" 数组严格控制在 6 条以内。
 """
         
-        user_prompt = f"""
+        user_prompt = """
 请分析以下政策文本：
 ================
-{raw_text}
+{content}
 ================
 """
         
@@ -129,7 +129,8 @@ JSON 结构如下：
                 "title": policy_data.get('title'),
                 "source": policy_data.get('source'),
                 "date": policy_data.get('date'),
-                "url": url
+                "url": url,
+                "content": raw_text
             })
             
             # 解析 JSON
