@@ -89,7 +89,7 @@ if 'is_analyzing' not in st.session_state:
 # --- 侧边栏 ---
 with st.sidebar:
     # 使用上传的 Logo 截图
-    logo_path = r"assets/uploaded_image_1769226368082.png"
+    logo_path = r"assets/efund_logo.png"
     if os.path.exists(logo_path):
         st.image(logo_path, width=200)
     else:
