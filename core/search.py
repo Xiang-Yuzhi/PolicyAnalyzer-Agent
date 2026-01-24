@@ -70,7 +70,7 @@ class PolicySearcher:
         print(f"📥 [SerpApi] 原始抓取: {len(candidates)} 条")
 
         # 3. 核心步骤：调用 Ranker 进行权威性排序
-        sorted_results = PolicyRanker.sort_policies(candidates)
+        sorted_results = PolicyRanker.sort_policies(candidates, query=query)
         
         # 4. 截取 Top N
         final_results = sorted_results[:num_results]

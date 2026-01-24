@@ -9,13 +9,76 @@ from core.document_gen import ReportGenerator
 
 # 页面配置
 st.set_page_config(
-    page_title="EFund 政策分析 Agent",
-    page_icon="📈",
+    page_title="政策检索分析Agent",
+    page_icon="📜",
     layout="wide"
 )
 
+# --- 易方达品牌配色 (EFund Deep Blue) ---
+EFUND_BLUE = "#004e9d"
+
+st.markdown(f"""
+    <style>
+    /* 基础按钮样式 (Global EFund Blue for both Light/Dark) */
+    div.stButton > button {{
+        background-color: {EFUND_BLUE} !important;
+        color: white !important;
+        border-radius: 8px;
+        border: none;
+        padding: 0.5rem 1rem;
+        transition: all 0.3s;
+    }}
+    div.stButton > button:hover {{
+        background-color: #003a75 !important;
+        box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+    }}
+
+    /* 默认浅色模式针对性优化 */
+    .dark-only {{ display: none !important; }}
+    
+    @media (prefers-color-scheme: light) {{
+        /* 针对用户反馈的“浅灰色”部分进行强化 */
+        .stMarkdown, .stText, p, span, li, [data-testid="stExpander"] p, [data-testid="stExpander"] div {{
+            color: #262730 !important; /* 加深为接近黑色 */
+        }}
+        .stCaption {{
+            color: #555 !important;
+        }}
+    }}
+    
+    /* 深色模式下的样式覆盖 (Keep Current EFund Blue Scheme) */
+    @media (prefers-color-scheme: dark) {{
+        .light-only {{ display: none !important; }}
+        .dark-only {{ display: block !important; }}
+        
+        :root {{
+            --efund-blue: {EFUND_BLUE};
+            --button-hover: #003a75;
+        }}
+        
+        /* 进度条颜色 */
+        .stProgress > div > div > div > div {{
+            background-color: var(--efund-blue);
+        }}
+        
+        /* 标题颜色适配 */
+        h1, h2, h3 {{
+            color: #4da3ff !important;
+            font-family: "Microsoft YaHei", sans-serif;
+        }}
+        
+        .stMarkdown {{
+            color: #e0e0e0;
+        }}
+        
+        [data-testid="stSidebar"] {{
+            border-right: 1px solid rgba(128, 128, 128, 0.2);
+        }}
+    }}
+    </style>
+    """, unsafe_allow_html=True)
+
 # --- 状态管理 (Session State) ---
-# Streamlit 每次交互都会重跑代码，所以需要用 Session State 记住之前的搜索结果
 if 'search_results' not in st.session_state:
     st.session_state.search_results = []
 if 'analysis_result' not in st.session_state:
@@ -25,47 +88,52 @@ if 'is_analyzing' not in st.session_state:
 
 # --- 侧边栏 ---
 with st.sidebar:
-    st.image("https://upload.wikimedia.org/wikipedia/commons/thumb/c/c1/Google_Homepage.svg/1200px-Google_Homepage.svg.png", caption="EFund Policy Agent v4.0", width=100) # 这里可以用 EFund Logo 替代
-    st.markdown("### ⚙️ 设置")
+    # 使用上传的 Logo 截图
+    logo_path = r"C:/Users/95744/.gemini/antigravity/brain/5e5814d9-c944-4c2b-9675-fb509fb83372/uploaded_image_1769226368082.png"
+    if os.path.exists(logo_path):
+        st.image(logo_path, width=200)
+    else:
+        st.image("https://upload.wikimedia.org/wikipedia/commons/2/2f/E_Fund_Management_Logo.png", width=180)
+    
+    st.divider()
     st.info("当前运行模式：Phase 1 (单文件分析)")
     
-    # 简单的 Debug 信息
     if st.session_state.search_results:
         st.write(f"已缓存 {len(st.session_state.search_results)} 条搜索结果")
 
 # --- 主界面 ---
-st.title("📈 EFund 政策分析解读 Agent")
-st.markdown("基于 **LangChain** + **Qwen-Max** 的智能投研助手")
+st.markdown('<h1 class="light-only">📈 EFund 政策分析解读 Agent</h1>', unsafe_allow_html=True)
+st.markdown('<h1 class="dark-only">📜 政策检索分析Agent</h1>', unsafe_allow_html=True)
+
+st.markdown('<div class="light-only"><p>基于 <b>LangChain</b> + <b>Qwen-Max</b> 的智能投研助手</p></div>', unsafe_allow_html=True)
+st.markdown('<div class="dark-only"><h3 style="font-size: 1.2rem; font-weight: normal;">基于 <b>LangChain</b> + <b>Qwen-Max</b> 的智能政策专家</h3></div>', unsafe_allow_html=True)
 st.divider()
 
 # 1. 搜索区域
 col1, col2 = st.columns([4, 1])
 with col1:
-    query = st.text_input("请输入政策关键词", placeholder="例如：上市公司减持管理办法 2024", label_visibility="collapsed")
+    query = st.text_input("请输入政策关键词及时间（可选）", placeholder="例如：上市公司减持管理办法 2024", label_visibility="collapsed")
 with col2:
     search_btn = st.button("🔍 联网检索", use_container_width=True)
 
 # 2. 处理搜索逻辑
-if search_btn and query:
-    with st.spinner("正在联网检索并进行权威性排序..."):
-        # 调用核心 Search 模块
+if (search_btn or (query and query != st.session_state.get('last_query', ''))) and query:
+    st.session_state.last_query = query
+    with st.spinner("正在进行多维度检索与排序..."):
         results = PolicySearcher.search(query)
         st.session_state.search_results = results
-        # 清空旧的分析结果
         st.session_state.analysis_result = None 
 
 # 3. 展示搜索结果列表
 if st.session_state.search_results:
-    st.subheader("📋 检索结果 (按权威性排序)")
+    st.subheader("📋 检索结果 (已为您智能排序)")
     
-    # 构造用于 Radio 选择的标签列表
-    # 格式: [Level X] 标题 (来源 - 日期)
+    # 修改：不显示 Level 层级
     options = []
     for idx, r in enumerate(st.session_state.search_results):
-        level = r.get('authority_level', 8)
         date = r.get('date', '未知日期')
         source = r.get('source', '未知来源')
-        label = f"【Level {level}】{r['title']} ({source} - {date})"
+        label = f"{r['title']} ({source} - {date})"
         options.append(label)
 
     # 让用户选择一个文件
@@ -158,4 +226,53 @@ if st.session_state.analysis_result:
 
     # 详细内容的折叠展示
     with st.expander("查看完整分析内容"):
-        st.json(res)
+        # 1. 政策基本信息
+        st.markdown("### 📄 政策基本信息")
+        policy = res.get('selected_policy', {})
+        col1, col2 = st.columns(2)
+        with col1:
+            st.write(f"**标题**: {policy.get('title', '-')}")
+            st.write(f"**发布机构**: {policy.get('issuer', '-')}")
+        with col2:
+            st.write(f"**发布日期**: {policy.get('publish_date', '-')}")
+            st.write(f"**来源链接**: [{policy.get('url', '-')}]({policy.get('url', '#')})")
+        
+        st.divider()
+        
+        # 2. 详细分析内容
+        content = res.get('docx_content', {})
+        
+        # 摘要
+        if content.get('摘要'):
+            st.markdown("### 📋 摘要")
+            for para in content['摘要']:
+                st.write(para)
+            st.divider()
+        
+        # 政策要点与变化
+        if content.get('政策要点与变化'):
+            st.markdown("### 🔍 政策要点与变化")
+            for para in content['政策要点与变化']:
+                st.write(para)
+            st.divider()
+        
+        # 对指数及其行业的影响
+        if content.get('对指数及其行业的影响'):
+            st.markdown("### 📊 对指数及其行业的影响")
+            for para in content['对指数及其行业的影响']:
+                st.write(para)
+            st.divider()
+        
+        # 对指数基金管理公司的建议
+        if content.get('对指数基金管理公司的建议'):
+            st.markdown("### 💡 对指数基金管理公司的建议")
+            for para in content['对指数基金管理公司的建议']:
+                st.write(para)
+            st.divider()
+        
+        # 对易方达的战略行动建议
+        if content.get('对易方达的战略行动建议'):
+            st.markdown("### 🎯 对易方达的战略行动建议")
+            for para in content['对易方达的战略行动建议']:
+                st.write(para)
+
