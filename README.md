@@ -1,20 +1,33 @@
-# PolicyAnalyzer-Agent
+# 政策检索分析Agent (PolicyAnalyzer-Agent)
 
-This is a rough draft of policy analyzer for open source official policies, regulations, and laws. Based on LangChain structure and Streamlit UI.
+基于 **LangChain** + **Qwen-Max** 的智能政策专家，旨在为投研人员提供一站式的政策检索、权威性排序及深度解读服务。
 
-## How to Run
+## 🌟 核心功能
+- **联网检索**：实时获取全网政策信息，支持关键词及时间维度检索。
+- **权威性排序**：内置 8 级权威度打分逻辑（国务院 > 证监会 > 商业媒体等）。
+- **智能解读**：调用 Qwen-Max 进行 2000 字级别的深度投研逻辑分析。
+- **一键报告生成**：生成符合易方达品牌格式要求的 Word 报告。
 
-To start the application and automatically set up the environment:
+## 📁 目录结构
+- `app.py`: Streamlit 主程序入口
+- `core/`: 核心业务逻辑模块 (Search, Ranker, Analyzer, Gen)
+- `tests/`: 单元测试与调试脚本
+- `assets/`: 静态资源（Logo、截图等）
+- `requirements.txt`: 依赖项列表
 
-1. Open PowerShell in this directory.
-2. Run the startup script:
-
-   ```powershell
-   .\run.ps1
+## 🚀 本地运行
+1. 安装依赖：
+   ```bash
+   pip install -r requirements.txt
+   ```
+2. 配置 `.env`：
+   填入您的 `DASHSCOPE_API_KEY` 和 `SERPER_API_KEY`。
+3. 启动应用：
+   ```bash
+   streamlit run app.py
    ```
 
-This script will:
-
-- Activate the virtual environment (`venv`).
-- Set required environment variables (like `USER_AGENT`) to suppress warnings.
-- Launch the Streamlit app correctly using `streamlit run`.
+## ☁️ 部署说明 (Streamlit Cloud)
+1. 将代码推送到 GitHub。
+2. 在 Streamlit Cloud 关联该仓库。
+3. 在 **Advanced Settings > Secrets** 中配置相关的 API 密钥。
