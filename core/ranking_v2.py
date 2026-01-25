@@ -55,7 +55,15 @@ class HybridRanker:
     # 官方域名白名单
     GOV_DOMAINS = [
         ".gov.cn", ".org.cn", "csrc.gov.cn", "sse.com.cn", 
-        "szse.cn", "pbc.gov.cn", "nafmii.org.cn"
+        "szse.cn", "pbc.gov.cn", "nafmii.org.cn", "amac.org.cn",
+        "circ.gov.cn", "mof.gov.cn", "ndrc.gov.cn"
+    ]
+    
+    # 新闻媒体域名黑名单 (降权处理)
+    NEWS_DOMAINS = [
+        "sina.com", "sohu.com", "163.com", "qq.com", "baidu.com",
+        "eastmoney.com", "hexun.com", "10jqka.com.cn", "cnstock.com",
+        "yicai.com", "caixin.com", "wallstreetcn.com", "cls.cn"
     ]
     
     def __init__(self, weights: Optional[Dict[str, float]] = None):
@@ -65,11 +73,12 @@ class HybridRanker:
         Args:
             weights: 各维度权重，默认 {"authority": 0.3, "bm25": 0.3, "semantic": 0.3, "recency": 0.1}
         """
+        # 调整权重：提升权威度权重，减少新闻媒体结果
         self.weights = weights or {
-            "authority": 0.3,
-            "bm25": 0.3,
-            "semantic": 0.3,
-            "recency": 0.1
+            "authority": 0.45,  # 提升权威度权重
+            "bm25": 0.25,
+            "semantic": 0.20,
+            "recency": 0.10
         }
     
     def rank(self, policies: List[Dict], query: str, 
@@ -122,9 +131,13 @@ class HybridRanker:
         # 4. 排序
         scored.sort(key=lambda x: x.final_score, reverse=True)
         
-        # 5. 返回带评分的政策
+        # 5. 返回带评分的政策 (过滤掉低权威度的新闻报道)
         result = []
         for sp in scored:
+            # 过滤掉权威度过低的结果 (新闻类)
+            if sp.authority_score < 0.35:
+                continue
+                
             policy = sp.policy.copy()
             policy["_scores"] = {
                 "authority": round(sp.authority_score, 3),
@@ -134,6 +147,17 @@ class HybridRanker:
                 "final": round(sp.final_score, 3)
             }
             result.append(policy)
+        
+        # 如果过滤后结果太少，放宽阈值
+        if len(result) < 3:
+            result = []
+            for sp in scored[:10]:  # 取前10个
+                policy = sp.policy.copy()
+                policy["_scores"] = {
+                    "authority": round(sp.authority_score, 3),
+                    "final": round(sp.final_score, 3)
+                }
+                result.append(policy)
         
         return result
     
@@ -164,6 +188,11 @@ class HybridRanker:
         source = policy.get("source", "")
         link = policy.get("link", "")
         combined = f"{source} {link}".lower()
+        
+        # 检查是否为新闻媒体 (降权)
+        for news_domain in self.NEWS_DOMAINS:
+            if news_domain in link.lower():
+                return 0.2  # 新闻媒体得分很低
         
         # 检查各层级
         for level, keywords in self.AUTHORITY_LEVELS.items():

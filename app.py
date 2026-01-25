@@ -162,10 +162,12 @@ st.title("📜 政策检索分析 Agent")
 st.caption("基于 LangChain + Qwen-Max 的智能投研助手 | 支持多轮对话与组合分析")
 st.divider()
 
-# --- 对话历史展示 ---
+# --- 对话历史展示 (仅显示最新2条) ---
 chat_container = st.container()
 with chat_container:
-    for msg in st.session_state.messages:
+    # 只展示最后2条消息，避免界面冗余
+    recent_messages = st.session_state.messages[-2:] if len(st.session_state.messages) > 2 else st.session_state.messages
+    for msg in recent_messages:
         if msg["role"] == "user":
             st.markdown(f'<div class="user-message">👤 {msg["content"]}</div>', unsafe_allow_html=True)
         else:

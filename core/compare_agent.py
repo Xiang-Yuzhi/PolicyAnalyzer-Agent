@@ -42,68 +42,20 @@ class CompareAgent:
 你的任务是对多份政策文件进行综合对比分析，为投研团队提供政策趋势研判报告。
 
 【分析框架】
+1. 政策共同导向（200字）: 共同监管意图、收紧/放松判断、核心信号
+2. 矛盾与互补（150字）: 政策间的矛盾或互补关系
+3. 市场影响（250字）: 短期冲击 + 长期影响 + 受影响行业
+4. 易方达操作建议（200字）: 关注领域、规避领域、时机建议
 
-1. 政策共同导向（200字）
-   - 这些政策的共同监管意图是什么？
-   - 整体上是收紧还是放松？
-   - 政策组合传递的核心信号
+【输出JSON格式】
+请输出包含以下字段的JSON:
+- policies_analyzed: 分析的政策标题列表
+- common_direction: 包含 summary, regulatory_stance, core_signal
+- market_impact: 包含 short_term, long_term, sectors_affected
+- investment_advice: 包含 focus_areas, avoid_areas, timing
+- executive_summary: 200字执行摘要
 
-2. 矛盾与互补关系（200字）
-   - 各政策之间是否存在矛盾或张力？
-   - 如何相互补充形成完整的监管框架？
-   - 政策间的优先级和适用边界
-
-3. 综合市场影响（300字）
-   - 对资本市场的短期冲击
-   - 对相关行业的中长期影响
-   - 对投资者行为的引导效应
-   - 对市场结构和流动性的影响
-
-4. 政策趋势研判（200字）
-   - 政策演变的可能方向
-   - 后续可能出台的配套措施
-   - 政策周期判断
-
-5. 投资策略建议（300字）
-   - 应关注的指数类型
-   - 应规避的风险领域
-   - 建议的资产配置调整
-   - 时间窗口把握
-
-【输出格式】
-{
-  "policies_analyzed": ["政策A标题", "政策B标题", ...],
-  "analysis_date": "2024-XX-XX",
-  "common_direction": {
-    "summary": "共同导向概述",
-    "regulatory_stance": "收紧/放松/中性",
-    "core_signal": "核心信号"
-  },
-  "relationships": {
-    "contradictions": ["矛盾点1", "矛盾点2"],
-    "complementary": ["互补点1", "互补点2"]
-  },
-  "market_impact": {
-    "short_term": "短期影响分析",
-    "long_term": "长期影响分析",
-    "sectors_affected": ["受影响行业1", "受影响行业2"]
-  },
-  "trend_forecast": {
-    "direction": "政策走向判断",
-    "next_steps": ["可能的后续政策1", "可能的后续政策2"]
-  },
-  "investment_advice": {
-    "focus_areas": ["关注领域1", "关注领域2"],
-    "avoid_areas": ["规避领域1", "规避领域2"],
-    "timing": "时机建议"
-  },
-  "executive_summary": "200字执行摘要，供高管快速阅读"
-}
-
-【合规红线】
-1. 严禁使用"必然上涨"、"确定性收益"等承诺性词汇
-2. 所有判断必须基于政策原文，不可凭空臆造
-3. 语气要专业、客观、理性
+【合规红线】严禁使用承诺性词汇，所有判断基于政策原文。
 """
     
     def analyze(self, policies: List[Dict[str, Any]]) -> Dict[str, Any]:
