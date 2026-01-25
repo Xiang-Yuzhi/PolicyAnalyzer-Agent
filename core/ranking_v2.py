@@ -1,0 +1,303 @@
+"""
+Ranking V2: 混合排序算法
+
+实现两阶段检索中的精排层：
+1. 权威度评分 (Authority Score)
+2. BM25 关键词相关性
+3. 语义相似度 (Embedding Cosine Similarity)
+4. 时效性评分 (Recency Score)
+
+最终分数 = 加权组合
+"""
+
+import re
+from typing import List, Dict, Any, Optional
+from datetime import datetime
+from dataclasses import dataclass
+
+# BM25 算法
+try:
+    from rank_bm25 import BM25Okapi
+    HAS_BM25 = True
+except ImportError:
+    HAS_BM25 = False
+    print("⚠️ rank_bm25 未安装，将跳过 BM25 评分")
+
+
+@dataclass
+class ScoredPolicy:
+    """带评分的政策对象"""
+    policy: Dict[str, Any]
+    authority_score: float = 0.0
+    bm25_score: float = 0.0
+    semantic_score: float = 0.0
+    recency_score: float = 0.0
+    final_score: float = 0.0
+
+
+class HybridRanker:
+    """
+    混合排序器：多维度评分 + 加权融合
+    """
+    
+    # 权威度层级 (与原 ranker.py 保持一致)
+    AUTHORITY_LEVELS = {
+        1: ["国务院", "中央", "全国人大", "国家发改委", "财政部"],
+        2: ["证监会", "银保监会", "央行", "中国人民银行", "国家金融监督管理总局"],
+        3: ["交易所", "上交所", "深交所", "北交所", "中登", "中国结算"],
+        4: ["证券业协会", "基金业协会", "期货业协会"],
+        5: ["地方金融局", "地方证监局"],
+        6: ["券商", "证券公司", "银行", "保险公司"],
+        7: ["财经媒体", "第一财经", "财新", "证券时报", "中国证券报"],
+        8: ["门户网站", "新浪", "网易", "搜狐", "百度"]
+    }
+    
+    # 官方域名白名单
+    GOV_DOMAINS = [
+        ".gov.cn", ".org.cn", "csrc.gov.cn", "sse.com.cn", 
+        "szse.cn", "pbc.gov.cn", "nafmii.org.cn"
+    ]
+    
+    def __init__(self, weights: Optional[Dict[str, float]] = None):
+        """
+        初始化排序器
+        
+        Args:
+            weights: 各维度权重，默认 {"authority": 0.3, "bm25": 0.3, "semantic": 0.3, "recency": 0.1}
+        """
+        self.weights = weights or {
+            "authority": 0.3,
+            "bm25": 0.3,
+            "semantic": 0.3,
+            "recency": 0.1
+        }
+    
+    def rank(self, policies: List[Dict], query: str, 
+             filter_official_only: bool = False) -> List[Dict]:
+        """
+        对政策列表进行混合排序
+        
+        Args:
+            policies: 原始政策列表
+            query: 用户查询
+            filter_official_only: 是否仅保留官方来源
+        
+        Returns:
+            排序后的政策列表（带评分）
+        """
+        if not policies:
+            return []
+        
+        # 1. 预过滤：官方来源筛选
+        if filter_official_only:
+            policies = self._filter_official(policies)
+        
+        # 2. 计算各维度分数
+        scored = [ScoredPolicy(policy=p) for p in policies]
+        
+        # 2.1 权威度评分
+        for sp in scored:
+            sp.authority_score = self._calc_authority(sp.policy)
+        
+        # 2.2 BM25 评分
+        if HAS_BM25:
+            self._calc_bm25_scores(scored, query)
+        
+        # 2.3 语义评分（暂用标题关键词匹配代替，后续可接入 Embedding）
+        self._calc_semantic_scores(scored, query)
+        
+        # 2.4 时效性评分
+        for sp in scored:
+            sp.recency_score = self._calc_recency(sp.policy)
+        
+        # 3. 加权融合
+        for sp in scored:
+            sp.final_score = (
+                self.weights["authority"] * sp.authority_score +
+                self.weights["bm25"] * sp.bm25_score +
+                self.weights["semantic"] * sp.semantic_score +
+                self.weights["recency"] * sp.recency_score
+            )
+        
+        # 4. 排序
+        scored.sort(key=lambda x: x.final_score, reverse=True)
+        
+        # 5. 返回带评分的政策
+        result = []
+        for sp in scored:
+            policy = sp.policy.copy()
+            policy["_scores"] = {
+                "authority": round(sp.authority_score, 3),
+                "bm25": round(sp.bm25_score, 3),
+                "semantic": round(sp.semantic_score, 3),
+                "recency": round(sp.recency_score, 3),
+                "final": round(sp.final_score, 3)
+            }
+            result.append(policy)
+        
+        return result
+    
+    def _filter_official(self, policies: List[Dict]) -> List[Dict]:
+        """过滤仅保留官方来源"""
+        filtered = []
+        for p in policies:
+            link = p.get("link", "").lower()
+            source = p.get("source", "").lower()
+            
+            # 检查域名
+            is_gov = any(domain in link for domain in self.GOV_DOMAINS)
+            
+            # 检查来源名称
+            is_official_source = any(
+                keyword in source 
+                for keywords in list(self.AUTHORITY_LEVELS.values())[:5]
+                for keyword in keywords
+            )
+            
+            if is_gov or is_official_source:
+                filtered.append(p)
+        
+        return filtered if filtered else policies  # 如果全被过滤，返回原列表
+    
+    def _calc_authority(self, policy: Dict) -> float:
+        """计算权威度分数 (0-1)"""
+        source = policy.get("source", "")
+        link = policy.get("link", "")
+        combined = f"{source} {link}".lower()
+        
+        # 检查各层级
+        for level, keywords in self.AUTHORITY_LEVELS.items():
+            for kw in keywords:
+                if kw.lower() in combined:
+                    # Level 1 得分最高 (1.0)，Level 8 得分最低 (0.125)
+                    return 1.0 - (level - 1) * 0.125
+        
+        # 检查是否为 .gov.cn
+        if ".gov.cn" in link:
+            return 0.9
+        
+        return 0.3  # 默认分数
+    
+    def _calc_bm25_scores(self, scored_list: List[ScoredPolicy], query: str):
+        """计算 BM25 分数"""
+        # 构建语料库
+        corpus = []
+        for sp in scored_list:
+            text = f"{sp.policy.get('title', '')} {sp.policy.get('snippet', '')}"
+            # 简单分词
+            tokens = self._tokenize(text)
+            corpus.append(tokens)
+        
+        if not corpus:
+            return
+        
+        # 构建 BM25 索引
+        bm25 = BM25Okapi(corpus)
+        
+        # 查询分词
+        query_tokens = self._tokenize(query)
+        
+        # 计算分数
+        scores = bm25.get_scores(query_tokens)
+        
+        # 归一化到 0-1
+        max_score = max(scores) if max(scores) > 0 else 1
+        for i, sp in enumerate(scored_list):
+            sp.bm25_score = scores[i] / max_score
+    
+    def _calc_semantic_scores(self, scored_list: List[ScoredPolicy], query: str):
+        """
+        计算语义相似度分数
+        
+        TODO: 后续可接入 DashScope Embedding API 或 sentence-transformers
+        当前使用关键词重叠度作为简化实现
+        """
+        query_tokens = set(self._tokenize(query))
+        
+        for sp in scored_list:
+            text = f"{sp.policy.get('title', '')} {sp.policy.get('snippet', '')}"
+            text_tokens = set(self._tokenize(text))
+            
+            if not query_tokens or not text_tokens:
+                sp.semantic_score = 0.0
+                continue
+            
+            # Jaccard 相似度
+            intersection = len(query_tokens & text_tokens)
+            union = len(query_tokens | text_tokens)
+            sp.semantic_score = intersection / union if union > 0 else 0.0
+    
+    def _calc_recency(self, policy: Dict) -> float:
+        """计算时效性分数 (0-1)"""
+        date_str = policy.get("date", "")
+        
+        if not date_str:
+            return 0.3  # 无日期给默认分
+        
+        # 尝试解析日期
+        try:
+            # 常见格式
+            for fmt in ["%Y年%m月%d日", "%Y-%m-%d", "%Y/%m/%d", "%Y年%m月"]:
+                try:
+                    date = datetime.strptime(date_str, fmt)
+                    break
+                except:
+                    continue
+            else:
+                # 尝试提取年份
+                year_match = re.search(r"(\d{4})", date_str)
+                if year_match:
+                    date = datetime(int(year_match.group(1)), 6, 15)  # 假设年中
+                else:
+                    return 0.3
+            
+            # 计算距今天数
+            days_ago = (datetime.now() - date).days
+            
+            # 时效性衰减
+            if days_ago <= 30:      # 1个月内
+                return 1.0
+            elif days_ago <= 90:    # 3个月内
+                return 0.9
+            elif days_ago <= 180:   # 半年内
+                return 0.8
+            elif days_ago <= 365:   # 1年内
+                return 0.6
+            elif days_ago <= 730:   # 2年内
+                return 0.4
+            else:
+                return 0.2
+                
+        except Exception as e:
+            return 0.3
+    
+    def _tokenize(self, text: str) -> List[str]:
+        """简单分词（中文按字符，英文按空格）"""
+        # 移除标点
+        text = re.sub(r'[^\w\s]', ' ', text)
+        
+        tokens = []
+        for word in text.split():
+            if re.match(r'^[\u4e00-\u9fff]+$', word):  # 中文
+                tokens.extend(list(word))  # 按字符拆分
+            else:
+                tokens.append(word.lower())
+        
+        return tokens
+
+
+# 测试代码
+if __name__ == "__main__":
+    ranker = HybridRanker()
+    
+    test_policies = [
+        {"title": "证监会发布上市公司减持新规", "link": "https://www.csrc.gov.cn/xxx", "source": "证监会", "date": "2024-05-24", "snippet": "减持规定..."},
+        {"title": "解读减持新规的影响", "link": "https://www.sina.com.cn/xxx", "source": "新浪财经", "date": "2024-05-25", "snippet": "分析减持..."},
+        {"title": "上交所发布减持问答", "link": "https://www.sse.com.cn/xxx", "source": "上交所", "date": "2024-05-20", "snippet": "问答..."},
+    ]
+    
+    results = ranker.rank(test_policies, "减持新规")
+    
+    for r in results:
+        print(f"\n{r['title']}")
+        print(f"  分数: {r['_scores']}")

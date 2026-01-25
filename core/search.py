@@ -1,12 +1,11 @@
 import requests
 import json
-from typing import List, Dict
+from typing import List, Dict, Optional
 import sys
 import os
 
 # 确保能导入同级模块
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
-from ranker import PolicyRanker
 
 try:
     from config import Config
@@ -16,44 +15,50 @@ except ImportError:
 
 class PolicySearcher:
     """
-    负责联网检索并调用 Ranker 进行排序 (适配 SerpApi 版本)
+    负责联网检索 (Stage 1: Recall)
     """
     
     @staticmethod
-    def search(query: str, num_results: int = 10) -> List[Dict]:
+    def search(query: str, num_results: int = 20, 
+               source_preference: str = "all", 
+               time_range: Optional[str] = None) -> List[Dict]:
         """
-        执行搜索 -> 清洗 -> 排序 -> 返回 Top N
+        执行搜索 -> 数据清洗 -> 返回候选列表
         """
-        print(f"🔍 [SerpApi] 正在检索关键词: {query} ...")
+        refined_query = query
         
-        # SerpApi 的标准端点
+        # 处理官方来源偏好
+        if source_preference == "gov":
+            refined_query += " site:.gov.cn"
+        
+        # 处理时间范围
+        if time_range:
+            refined_query += f" {time_range}"
+            
+        print(f"🔍 [SerpApi] 正在检索关键词: {refined_query} ...")
+        
         url = "https://serpapi.com/search"
-        
-        # SerpApi 使用 GET 请求参数
         params = {
             "engine": "google",
-            "q": query,
-            "api_key": Config.SERPER_API_KEY, # 复用配置里的变量名
-            "gl": "cn",       # 地理位置：中国
-            "hl": "zh-cn",    # 语言：简体中文
-            "num": 20         # 多抓一些供 Ranker 筛选
+            "q": refined_query,
+            "api_key": Config.SERPER_API_KEY,
+            "gl": "cn",
+            "hl": "zh-cn",
+            "num": 40 if source_preference == "all" else 20 # 广域搜索多抓一些
         }
 
         try:
-            response = requests.get(url, params=params)
+            response = requests.get(url, params=params, timeout=15)
             response.raise_for_status()
             data = response.json()
         except Exception as e:
             print(f"❌ 搜索 API 调用失败: {e}")
             return []
 
-        # 1. 提取原始结果 (SerpApi 的 key 是 'organic_results')
         raw_results = data.get("organic_results", [])
         
-        # 2. 数据标准化 (Standardize)
         candidates = []
         for item in raw_results:
-            # 提取 Source，SerpApi 有时放在 source 字段，有时需解析
             source_info = item.get("source", "")
             if not source_info and "displayed_link" in item:
                 source_info = item["displayed_link"]
@@ -62,17 +67,18 @@ class PolicySearcher:
                 "title": item.get("title", ""),
                 "link": item.get("link", ""),
                 "snippet": item.get("snippet", ""),
-                # SerpApi 的日期字段可能叫 'date'
                 "date": item.get("date", ""),
                 "source": source_info
             })
 
         print(f"📥 [SerpApi] 原始抓取: {len(candidates)} 条")
-
-        # 3. 核心步骤：调用 Ranker 进行权威性排序
-        sorted_results = PolicyRanker.sort_policies(candidates, query=query)
         
-        # 4. 截取 Top N
-        final_results = sorted_results[:num_results]
-        
-        return final_results
+        # 结果去重 (基于 URL)
+        seen_urls = set()
+        unique_candidates = []
+        for c in candidates:
+            if c['link'] not in seen_urls:
+                seen_urls.add(c['link'])
+                unique_candidates.append(c)
+                
+        return unique_candidates
