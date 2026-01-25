@@ -71,8 +71,18 @@ class ReportGenerator:
         
         # 2. 政策信息
         policy_info = analysis_data.get('selected_policy', {}) or {}
-        policy_title = policy_info.get('title', '未命名政策')
+        policies_analyzed = analysis_data.get('policies_analyzed', [])
         
+        if policy_info:
+            policy_title = policy_info.get('title', '未命名政策')
+            meta_text = f"发布机构: {policy_info.get('issuer', '-')}  发布时间: {policy_info.get('publish_date', '-')}  来源: {policy_info.get('url', '-')}"
+        elif policies_analyzed:
+            policy_title = f"组合政策分析报告 ({len(policies_analyzed)} 份)"
+            meta_text = "分析对象: " + "、".join(policies_analyzed)
+        else:
+            policy_title = "未命名深度分析报告"
+            meta_text = "投研深度政策分析"
+
         subtitle = doc.add_paragraph(policy_title)
         subtitle.alignment = WD_ALIGN_PARAGRAPH.CENTER
         subtitle.runs[0].bold = True
@@ -83,33 +93,17 @@ class ReportGenerator:
         meta_para = doc.add_paragraph()
         meta_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
         meta_para.paragraph_format.first_line_indent = Inches(0)
-        meta_run1 = meta_para.add_run(f"发布机构: {policy_info.get('issuer', '-')}  ")
-        meta_run1.italic = True
-        meta_run1.font.size = Pt(10.5)
-        meta_run2 = meta_para.add_run(f"发布时间: {policy_info.get('publish_date', '-')}  ")
-        meta_run2.italic = True
-        meta_run2.font.size = Pt(10.5)
-        meta_run3 = meta_para.add_run(f"来源: {policy_info.get('url', '-')}")
-        meta_run3.italic = True
-        meta_run3.font.size = Pt(10.5)
-        meta_run3.font.color.rgb = RGBColor(0, 78, 157)  # 易方达蓝色链接
+        meta_run = meta_para.add_run(meta_text)
+        meta_run.italic = True
+        meta_run.font.size = Pt(10)
         
         doc.add_paragraph()  # 空行
 
         
-        # 3. 正文内容
+        # 3. 正文内容 (自适应所有返回的章节)
         content_data = analysis_data.get('docx_content', {}) or {}
         
-        # 定义章节
-        sections = [
-            ("摘要", content_data.get("摘要", [])),
-            ("政策要点与变化", content_data.get("政策要点与变化", [])),
-            ("对指数及其行业的影响", content_data.get("对指数及其行业的影响", [])),
-            ("对指数基金管理公司的建议", content_data.get("对指数基金管理公司的建议", [])),
-            ("对易方达的战略行动建议", content_data.get("对易方达的战略行动建议", []))
-        ]
-        
-        for section_title, paragraphs in sections:
+        for section_title, paragraphs in content_data.items():
             if not paragraphs:
                 continue
             

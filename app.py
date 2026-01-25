@@ -76,6 +76,14 @@ st.markdown(f"""
         margin-left: 8px;
     }}
     
+    .section-header {{
+        font-size: 1.1rem;
+        font-weight: bold;
+        color: #004e9d;
+        margin-top: 1rem;
+        margin-bottom: 0.5rem;
+    }}
+    
     /* 浅色模式优化 */
     @media (prefers-color-scheme: light) {{
         .stMarkdown, .stText, p, span, li {{
@@ -175,44 +183,35 @@ with chat_container:
 
 # --- 搜索结果展示区 ---
 if st.session_state.search_results:
-    st.subheader("📋 检索结果 (已为您智能排序)")
+    st.markdown('<p class="section-header">📋 精选检索结果</p>', unsafe_allow_html=True)
     
     for idx, r in enumerate(st.session_state.search_results):
         is_cached = any(p['link'] == r['link'] for p in st.session_state.policy_cache)
         
-        col1, col2, col3 = st.columns([5, 1, 1])
-        with col1:
-            title_display = r['title']
-            if is_cached:
-                title_display += ' <span class="cached-tag">已暂存</span>'
-            
-            date = r.get('date', '未知日期')
-            source = r.get('source', '未知来源')
-            
-            st.markdown(f"**{idx+1}. {r['title']}**")
-            st.caption(f"📅 {date} | 🏛️ {source}")
-            
-            if r.get('_scores'):
-                scores = r['_scores']
-                st.caption(f"评分: 权威{scores.get('authority', 0):.2f} | 相关{scores.get('bm25', 0):.2f}")
+        # 统一标题格式：标题 + 日期 + 机构
+        full_title = f"{r['title']} [{r.get('date', '未知')}] ({r.get('source', '未知')})"
         
-        with col2:
-            if not is_cached:
-                if st.button("📌 暂存", key=f"cache_{idx}"):
-                    st.session_state.policy_cache.append(r)
-                    st.session_state.messages.append({
-                        "role": "assistant",
-                        "content": f"✅ 已暂存《{r['title'][:20]}...》"
-                    })
+        with st.container():
+            col1, col2 = st.columns([6, 1])
+            with col1:
+                st.markdown(f"**{idx+1}. {full_title}**")
+                if is_cached:
+                    st.markdown('<span class="cached-tag">已在暂存池</span>', unsafe_allow_html=True)
+                
+                # 紧凑显示 snippet
+                st.caption(r.get('snippet', '')[:150] + "...")
+            
+            with col2:
+                if not is_cached:
+                    if st.button("📌 暂存", key=f"cache_{idx}", use_container_width=True):
+                        st.session_state.policy_cache.append(r)
+                        st.rerun()
+                
+                if st.button("🔍 分析", key=f"analyze_{idx}", use_container_width=True):
+                    st.session_state.selected_for_analysis = r
+                    st.session_state.trigger_single_analysis = True
                     st.rerun()
-        
-        with col3:
-            if st.button("🔍 分析", key=f"analyze_{idx}"):
-                st.session_state.selected_for_analysis = r
-                st.session_state.trigger_single_analysis = True
-                st.rerun()
-        
-        st.divider()
+            st.divider()
 
 # --- 分析结果展示 ---
 if st.session_state.analysis_result:
@@ -231,13 +230,25 @@ if st.session_state.analysis_result:
     with col2:
         report_file = "EFund_Policy_Report.docx"
         ReportGenerator.generate_docx(res, report_file)
+        
+        # 处理文件名
+        p_info = res.get('selected_policy', {})
+        pa_list = res.get('policies_analyzed', [])
+        if p_info:
+            fn = f"政策解读_{p_info.get('title', '报告')[:10]}.docx"
+        else:
+            fn = f"组合分析报告_{len(pa_list)}份.docx"
+            
         with open(report_file, "rb") as file:
             st.download_button(
                 label="📥 下载word报告",
                 data=file,
-                file_name=f"政策解读_{res.get('selected_policy', {}).get('title', '报告')[:10]}.docx",
+                file_name=fn,
                 mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
             )
+    
+    if res.get('policies_analyzed'):
+        st.subheader(f"📊 组合分析结果 ({len(res['policies_analyzed'])} 份)")
     
     # 详细内容折叠
     with st.expander("📄 查看完整分析"):
@@ -265,28 +276,28 @@ if user_input:
     
     # 根据意图执行不同操作
     if parsed.intent == Intent.SEARCH:
-        # 1. 提取结构化关键词 (Search Agent)
-        search_params = st.session_state.router.extract_keywords(parsed.search_query)
-        st.session_state.messages.append({
-            "role": "assistant", 
-            "content": f"🔍 正在从全网为您检索: **{search_params['refined_query']}**"
-        })
-        
-        # 2. Stage 1: Recall
-        results = PolicySearcher.search(
-            search_params['refined_query'],
-            source_preference=search_params.get('source_preference', 'all'),
-            time_range=search_params.get('time_range')
-        )
-        
-        # 3. Stage 2: Ranking
-        ranker = HybridRanker()
-        results = ranker.rank(results, parsed.search_query)
+        # 进度展示
+        with st.status("🔍 正在开启投研智能检索...", expanded=True) as status:
+            st.write("📡 提取意图关键词...")
+            search_params = st.session_state.router.extract_keywords(parsed.search_query)
+            
+            st.write(f"🌐 正在检索: {search_params['refined_query']}...")
+            results = PolicySearcher.search(
+                search_params['refined_query'],
+                source_preference=search_params.get('source_preference', 'all'),
+                time_range=search_params.get('time_range')
+            )
+            
+            st.write("⚖️ 正在执行权威度与相关性混合排序 (Ranking V2)...")
+            ranker = HybridRanker()
+            results = ranker.rank(results, parsed.search_query)
+            
+            status.update(label="✅ 检索与排序完成！", state="complete", expanded=False)
         
         st.session_state.search_results = results
         st.session_state.messages.append({
             "role": "assistant",
-            "content": f"✅ 已根据投研权威度及关联性为您精选 {len(results)} 条政策。"
+            "content": f"✅ 已为您精选 {len(results)} 条政策，并按投研权威度排序。"
         })
     
     elif parsed.intent == Intent.SELECT_AND_CONTINUE:
@@ -412,38 +423,30 @@ if st.session_state.get('trigger_single_analysis'):
 # --- 触发组合分析 ---
 if st.session_state.get('trigger_compare'):
     if len(st.session_state.policy_cache) >= 2:
-        with st.spinner("🔍 正在进行组合政策分析..."):
-            result = st.session_state.compare_agent.analyze(st.session_state.policy_cache)
+        # 进度展示
+        progress_bar = st.progress(0)
+        status_text = st.empty()
+        
+        def update_compare_progress(msg, p):
+            status_text.text(msg)
+            progress_bar.progress(p)
+
+        try:
+            result = st.session_state.compare_agent.analyze(st.session_state.policy_cache, stage_callback=update_compare_progress)
             
             if "error" not in result:
-                st.subheader("📊 组合分析结果")
-                
-                # 共同导向
-                common = result.get('common_direction', {})
-                st.markdown(f"### 政策共同导向")
-                st.write(f"**监管立场**: {common.get('regulatory_stance', '未知')}")
-                st.write(f"**核心信号**: {common.get('core_signal', '')}")
-                st.write(common.get('summary', ''))
-                
-                # 市场影响与易方达操作建议
-                impact = result.get('market_impact', {})
-                st.markdown("### 市场影响与操作建议")
-                st.write(f"**短期影响**: {impact.get('short_term', '')}")
-                st.write(f"**长期影响**: {impact.get('long_term', '')}")
-                
-                # 易方达操作建议（从 investment_advice 中提取关注领域）
-                advice = result.get('investment_advice', {})
-                if advice.get('focus_areas'):
-                    st.write(f"**易方达应关注领域**: {', '.join(advice.get('focus_areas', []))}")
-                if advice.get('timing'):
-                    st.write(f"**操作时机建议**: {advice.get('timing', '')}")
-                
-                # 执行摘要
-                st.markdown("### 📋 执行摘要")
-                st.info(result.get('executive_summary', ''))
+                st.session_state.analysis_result = result
+                update_compare_progress("✅ 组合分析完成！", 100)
             else:
                 st.error(f"分析失败: {result['error']}")
+        except Exception as e:
+            st.error(f"发生错误: {e}")
+        finally:
+            time.sleep(1)
+            progress_bar.empty()
+            status_text.empty()
+            st.session_state.trigger_compare = False
+            st.rerun()
     else:
         st.warning("组合分析需要至少2个政策，请先暂存更多政策。")
-    
-    st.session_state.trigger_compare = False
+        st.session_state.trigger_compare = False
