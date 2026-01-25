@@ -44,6 +44,7 @@ class ParsedIntent:
     intent: Intent
     search_query: Optional[str] = None          # 检索关键词
     select_indices: Optional[List[int]] = None  # 要暂存的政策序号 (1-based)
+    analysis_direction: Optional[str] = None    # 分析方向/具体指令 (仅分析意图时填写)
     message: Optional[str] = None               # 给用户的回复消息
 
 
@@ -92,7 +93,8 @@ class RouterAgent:
 {
   "intent": "SEARCH|SELECT_AND_CONTINUE|SELECT_ONLY|ANALYZE_SINGLE|ANALYZE_COMBINED|CLEAR_CACHE|CHAT",
   "search_query": "提取的检索关键词（仅 SEARCH 和 SELECT_AND_CONTINUE 时填写）",
-  "select_indices": [1, 2, 3],  // 要暂存的政策序号（1-based，仅 SELECT_* 时填写）
+  "select_indices": [1, 2, 3],  // 要暂存的政策序号（1-based）
+  "analysis_direction": "用户提到的分析侧重点或具体指令（如：'对中小企业的影响'、'合规合规要求'等，仅分析意图时填写）",
   "message": "给用户的简短回复或确认信息"
 }
 
@@ -100,7 +102,8 @@ class RouterAgent:
 1. select_indices 使用 1-based 索引（用户说"第一个"对应 1）
 2. 如果用户说"上面的"、"刚才那个"但没指定具体序号，默认为 [1]
 3. search_query 应该提取用户真正想搜索的关键词，去掉"帮我找"等无关词
-4. message 应该简短、友好，确认用户的操作意图
+4. analysis_direction 应该保留用户请求分析时的具体侧重点，如果用户只是通用的"分析"，填 null
+5. message 应该简短、友好，确认用户的操作意图
 """
 
     def parse(self, user_input: str, context: Optional[Dict] = None) -> ParsedIntent:
@@ -146,6 +149,7 @@ class RouterAgent:
                 intent=Intent(result.get("intent", "CHAT")),
                 search_query=result.get("search_query"),
                 select_indices=result.get("select_indices"),
+                analysis_direction=result.get("analysis_direction"),
                 message=result.get("message", "")
             )
         except Exception as e:

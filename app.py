@@ -128,6 +128,12 @@ if 'router' not in st.session_state:
     st.session_state.router = RouterAgent()
 if 'compare_agent' not in st.session_state:
     st.session_state.compare_agent = CompareAgent()
+if 'analysis_direction' not in st.session_state:
+    st.session_state.analysis_direction = None
+if 'trigger_compare' not in st.session_state:
+    st.session_state.trigger_compare = False
+if 'trigger_single_analysis' not in st.session_state:
+    st.session_state.trigger_single_analysis = False
 
 # --- 侧边栏 ---
 with st.sidebar:
@@ -259,8 +265,10 @@ if st.session_state.analysis_result:
                 st.write(p)
             st.divider()
 
+# --- 进度感知占位符 ---
+progress_container = st.container()
+
 # --- 用户输入区 ---
-st.divider()
 user_input = st.chat_input("请输入您的问题或指令（如：帮我找2024年减持新规）")
 
 if user_input:
@@ -276,8 +284,8 @@ if user_input:
     
     # 根据意图执行不同操作
     if parsed.intent == Intent.SEARCH:
-        # 进度展示
-        with st.status("🔍 正在开启投研智能检索...", expanded=True) as status:
+        # 进度展示 (在输入框上方)
+        with progress_container.status("🔍 正在开启投研智能检索...", expanded=True) as status:
             st.write("📡 提取意图关键词...")
             search_params = st.session_state.router.extract_keywords(parsed.search_query)
             
@@ -348,27 +356,23 @@ if user_input:
     elif parsed.intent == Intent.ANALYZE_COMBINED:
         # 组合分析
         if len(st.session_state.policy_cache) >= 2:
-            st.session_state.messages.append({
-                "role": "assistant",
-                "content": f"🔍 正在对 {len(st.session_state.policy_cache)} 份政策进行组合分析..."
-            })
-            
-            result = st.session_state.compare_agent.analyze(st.session_state.policy_cache)
-            if "error" not in result:
-                st.session_state.messages.append({
-                    "role": "assistant",
-                    "content": f"✅ 组合分析完成！\n\n**政策共同导向**: {result.get('common_direction', {}).get('summary', '')}\n\n**执行摘要**: {result.get('executive_summary', '')}"
-                })
-            else:
-                st.session_state.messages.append({
-                    "role": "assistant",
-                    "content": f"❌ 分析失败: {result['error']}"
-                })
+            st.session_state.analysis_direction = parsed.analysis_direction
+            st.session_state.trigger_compare = True
+            st.rerun()
         else:
             st.session_state.messages.append({
                 "role": "assistant",
                 "content": "❌ 组合分析需要至少2个政策，请先暂存更多政策。"
             })
+    
+    elif parsed.intent == Intent.ANALYZE_SINGLE:
+        # 单篇分析 (通过自然语言触发)
+        if parsed.select_indices and st.session_state.search_results:
+            idx = parsed.select_indices[0]
+            if 1 <= idx <= len(st.session_state.search_results):
+                st.session_state.selected_for_analysis = st.session_state.search_results[idx - 1]
+                st.session_state.trigger_single_analysis = True
+                st.rerun()
     
     elif parsed.intent == Intent.CLEAR_CACHE:
         st.session_state.policy_cache = []
@@ -390,9 +394,9 @@ if user_input:
 if st.session_state.get('trigger_single_analysis'):
     policy = st.session_state.get('selected_for_analysis')
     if policy:
-        # 定义进度回调
-        progress_bar = st.progress(0)
-        status_text = st.empty()
+        # 进度展示 (在输入框上方)
+        progress_bar = progress_container.progress(0)
+        status_text = progress_container.empty()
         
         def update_progress(msg, p):
             status_text.text(msg)
@@ -400,12 +404,14 @@ if st.session_state.get('trigger_single_analysis'):
 
         try:
             analyzer = PolicyAnalyzer()
-            # 调用带 RAG 增强的分析方法
             analysis_json = analyzer.analyze(policy, stage_callback=update_progress)
             
             if "error" not in analysis_json:
                 st.session_state.analysis_result = analysis_json
-                update_progress("✅ 分析完成！", 100)
+                st.session_state.messages.append({
+                    "role": "assistant",
+                    "content": f"✅ 《{policy['title']}》分析完成，报告已生成，请在下方查看或下载。"
+                })
             else:
                 st.error(f"分析失败: {analysis_json['error']}")
         
@@ -423,20 +429,27 @@ if st.session_state.get('trigger_single_analysis'):
 # --- 触发组合分析 ---
 if st.session_state.get('trigger_compare'):
     if len(st.session_state.policy_cache) >= 2:
-        # 进度展示
-        progress_bar = st.progress(0)
-        status_text = st.empty()
+        # 进度展示 (在输入框上方)
+        progress_bar = progress_container.progress(0)
+        status_text = progress_container.empty()
         
         def update_compare_progress(msg, p):
             status_text.text(msg)
             progress_bar.progress(p)
 
         try:
-            result = st.session_state.compare_agent.analyze(st.session_state.policy_cache, stage_callback=update_compare_progress)
+            result = st.session_state.compare_agent.analyze(
+                st.session_state.policy_cache, 
+                stage_callback=update_compare_progress,
+                user_direction=st.session_state.get('analysis_direction')
+            )
             
             if "error" not in result:
                 st.session_state.analysis_result = result
-                update_compare_progress("✅ 组合分析完成！", 100)
+                st.session_state.messages.append({
+                    "role": "assistant",
+                    "content": "✅ 组合分析完成，已为您生成 2000 字深度纵深研报。"
+                })
             else:
                 st.error(f"分析失败: {result['error']}")
         except Exception as e:
@@ -446,6 +459,7 @@ if st.session_state.get('trigger_compare'):
             progress_bar.empty()
             status_text.empty()
             st.session_state.trigger_compare = False
+            st.session_state.analysis_direction = None
             st.rerun()
     else:
         st.warning("组合分析需要至少2个政策，请先暂存更多政策。")

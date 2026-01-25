@@ -70,12 +70,12 @@ class CompareAgent:
 【禁令】严禁使用点状列表。文字要求具备深度，逻辑连贯，语气符合专业研报规范。
 """
     
-    def analyze(self, policies: List[Dict[str, Any]], stage_callback=None) -> Dict[str, Any]:
+    def analyze(self, policies: List[Dict[str, Any]], stage_callback=None, user_direction=None) -> Dict[str, Any]:
         """
         对多个政策进行组合分析
         """
         if not policies:
-            return {"error": "没有可分析의 政策"}
+            return {"error": "没有可分析的 政策"}
         
         if len(policies) < 2:
             return {"error": "组合分析需要至少2个政策，请先暂存更多政策后再试"}
@@ -96,8 +96,10 @@ class CompareAgent:
         
         if stage_callback: stage_callback("🧠 正在生成 2000 字深度研判报告...", 50)
         
+        direction_clause = f"\n特别侧重与侧点：{user_direction}\n" if user_direction else ""
+        
         user_prompt = f"""请对以下 {len(policies)} 份政策进行综合对比分析，撰写不少于2000字的专业研报：
-
+{direction_clause}
 {"".join(policy_summaries)}
 
 请注意：成段撰写，严禁点状清单，引用原文，字数务必充足。
