@@ -12,7 +12,7 @@ from core.ranking_v2 import HybridRanker
 
 # 页面配置
 st.set_page_config(
-    page_title="EFund 政策分析 Agent",
+    page_title="政策检索分析Agent",
     page_icon="📜",
     layout="wide"
 )
@@ -158,7 +158,7 @@ with st.sidebar:
         st.caption("💡 搜索后点击[暂存]或用自然语言选择")
 
 # --- 主界面 ---
-st.title("📜 EFund 政策分析 Agent")
+st.title("📜 政策检索分析 Agent")
 st.caption("基于 LangChain + Qwen-Max 的智能投研助手 | 支持多轮对话与组合分析")
 st.divider()
 
@@ -173,7 +173,7 @@ with chat_container:
 
 # --- 搜索结果展示区 ---
 if st.session_state.search_results:
-    st.subheader("📋 检索结果")
+    st.subheader("📋 检索结果 (已为您智能排序)")
     
     for idx, r in enumerate(st.session_state.search_results):
         is_cached = any(p['link'] == r['link'] for p in st.session_state.policy_cache)
@@ -231,7 +231,7 @@ if st.session_state.analysis_result:
         ReportGenerator.generate_docx(res, report_file)
         with open(report_file, "rb") as file:
             st.download_button(
-                label="📥 下载报告",
+                label="📥 下载word报告",
                 data=file,
                 file_name=f"政策解读_{res.get('selected_policy', {}).get('title', '报告')[:10]}.docx",
                 mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
@@ -423,17 +423,18 @@ if st.session_state.get('trigger_compare'):
                 st.write(f"**核心信号**: {common.get('core_signal', '')}")
                 st.write(common.get('summary', ''))
                 
-                # 市场影响
+                # 市场影响与易方达操作建议
                 impact = result.get('market_impact', {})
-                st.markdown("### 市场影响")
-                st.write(f"**短期**: {impact.get('short_term', '')}")
-                st.write(f"**长期**: {impact.get('long_term', '')}")
+                st.markdown("### 市场影响与操作建议")
+                st.write(f"**短期影响**: {impact.get('short_term', '')}")
+                st.write(f"**长期影响**: {impact.get('long_term', '')}")
                 
-                # 投资建议
+                # 易方达操作建议（从 investment_advice 中提取关注领域）
                 advice = result.get('investment_advice', {})
-                st.markdown("### 投资建议")
-                st.write(f"**关注领域**: {', '.join(advice.get('focus_areas', []))}")
-                st.write(f"**规避领域**: {', '.join(advice.get('avoid_areas', []))}")
+                if advice.get('focus_areas'):
+                    st.write(f"**易方达应关注领域**: {', '.join(advice.get('focus_areas', []))}")
+                if advice.get('timing'):
+                    st.write(f"**操作时机建议**: {advice.get('timing', '')}")
                 
                 # 执行摘要
                 st.markdown("### 📋 执行摘要")

@@ -11,4 +11,4 @@ pandas==2.3.3
 pyyaml==6.0.3
 google_search_results==2.4.2
 rank_bm25==0.2.2
-faiss-cpu==1.7.4
+faiss-cpu>=1.8.0
