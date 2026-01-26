@@ -7,7 +7,7 @@ load_dotenv()
 class Config:
     # 模型配置
     DASHSCOPE_API_KEY = os.getenv("DASHSCOPE_API_KEY")
-    MODEL_NAME = "qwen-max"  # 或 qwen-plus
+    MODEL_NAME = "qwen-flash"
     
     # 搜索配置
     SERPER_API_KEY = os.getenv("SERPER_API_KEY")
