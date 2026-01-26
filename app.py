@@ -218,11 +218,6 @@ with chat_container:
         else:
             st.markdown(f'<div class="agent-message">🤖 {msg["content"]}</div>', unsafe_allow_html=True)
 
-# --- 底部固定区 (进度条 + 输入框) ---
-# 注意：Streamlit 的容器不支持直接 fixed 定位，这里通过逻辑顺序优化
-# 将进度条放置在最下方，紧邻输入框
-progress_container = st.container()
-
 # --- 搜索结果展示区 ---
 if st.session_state.search_results:
     st.markdown('<p class="section-header">📋 精选检索结果</p>', unsafe_allow_html=True)
@@ -315,6 +310,10 @@ if st.session_state.analysis_result:
             for p in paragraphs:
                 st.write(p)
             st.divider()
+
+# --- 底部固定区 (进度条 + 输入框) ---
+# 将进度条放置在最下方，紧邻输入框
+progress_container = st.container()
 
 # --- 用户输入区 ---
 user_input = st.chat_input("请输入您的问题或指令（如：帮我找2024年减持新规）")
