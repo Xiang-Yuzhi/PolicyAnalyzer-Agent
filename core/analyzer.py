@@ -32,7 +32,7 @@ class PolicyAnalyzer:
             api_key=Config.DASHSCOPE_API_KEY,
             base_url="https://dashscope.aliyuncs.com/compatible-mode/v1",
             model=Config.MODEL_NAME,
-            temperature=0.3,
+            temperature=0.2, # 为报告撰写保留一点专业叙述的流畅度
             model_kwargs={
                 "response_format": {"type": "json_object"}
             }

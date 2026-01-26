@@ -165,6 +165,8 @@ if 'trigger_compare' not in st.session_state:
     st.session_state.trigger_compare = False
 if 'trigger_single_analysis' not in st.session_state:
     st.session_state.trigger_single_analysis = False
+if 'search_cache' not in st.session_state:
+    st.session_state.search_cache = {}  # 搜索结果缓存：{query: results}
 
 # --- 侧边栏 ---
 with st.sidebar:
@@ -331,48 +333,56 @@ if user_input:
     
     # 根据意图执行不同操作
     if parsed.intent == Intent.SEARCH:
-        # 进度展示 (在输入框上方)
-        with progress_container.status("🔍 正在开启投研智能检索...", expanded=True) as status:
-            st.write("📡 提取意图关键词...")
-            search_params = st.session_state.router.extract_keywords(parsed.search_query)
-            
-            st.write(f"🌐 正在检索: {search_params['refined_query']}...")
-            results = PolicySearcher.search(
-                search_params['refined_query'],
-                source_preference=search_params.get('source_preference', 'all'),
-                time_range=search_params.get('time_range')
-            )
-            
-            st.write("⚖️ 正在执行权威度与相关性混合排序 (Ranking V2)...")
-            ranker = HybridRanker()
-            results = ranker.rank(results, parsed.search_query)
-            
-            # --- 新增：自动补齐重试逻辑 ---
-            if not results and search_params.get('source_preference') == 'gov':
-                st.write("⚠️ 官方渠道未找到，正在尝试扩大搜索范围...")
+        # 首先检查缓存
+        raw_query = parsed.search_query.strip()
+        if raw_query in st.session_state.search_cache:
+            st.session_state.search_results = st.session_state.search_cache[raw_query]
+            msg = f"♻️ 已从缓存为您恢复 “{raw_query}” 的精选结果。"
+        else:
+            # 进度展示 (在输入框上方)
+            with progress_container.status("🔍 正在开启投研智能检索...", expanded=True) as status:
+                st.write("📡 提取意图关键词...")
+                search_params = st.session_state.router.extract_keywords(parsed.search_query)
+                
+                st.write(f"🌐 正在检索: {search_params['refined_query']}...")
                 results = PolicySearcher.search(
                     search_params['refined_query'],
-                    source_preference='all',
+                    source_preference=search_params.get('source_preference', 'all'),
                     time_range=search_params.get('time_range')
                 )
+                
+                st.write("⚖️ 正在执行权威度与相关性混合排序 (Ranking V2)...")
+                ranker = HybridRanker()
                 results = ranker.rank(results, parsed.search_query)
+                
+                # --- 自动补齐重试逻辑 ---
+                if not results and search_params.get('source_preference') == 'gov':
+                    st.write("⚠️ 官方渠道未找到，正在尝试扩大搜索范围...")
+                    results = PolicySearcher.search(
+                        search_params['refined_query'],
+                        source_preference='all',
+                        time_range=search_params.get('time_range')
+                    )
+                    results = ranker.rank(results, parsed.search_query)
+                
+                # --- 终极兜底 ---
+                if not results:
+                    st.write("📡 正在尝试使用原始指令进行补全搜索...")
+                    results = PolicySearcher.search(
+                        parsed.search_query,
+                        source_preference='all'
+                    )
+                    results = ranker.rank(results, parsed.search_query)
+                
+                status.update(label="✅ 检索与排序完成！", state="complete", expanded=False)
             
-            # --- 终极兜底：如果 AI 优化的词也没结果，尝试原始输入词 ---
-            if not results:
-                st.write("📡 正在尝试使用原始指令进行补全搜索...")
-                results = PolicySearcher.search(
-                    parsed.search_query,
-                    source_preference='all'
-                )
-                results = ranker.rank(results, parsed.search_query)
-            
-            status.update(label="✅ 检索与排序完成！", state="complete", expanded=False)
-        
-        st.session_state.search_results = results
-        if results:
-            msg = f"✅ 已为您精选 {len(results)} 条政策，并按投研权威度排序。"
-        else:
-            msg = f"❌ 未找到与“{search_params.get('refined_query', parsed.search_query)}”相关的权威政策。建议尝试更简短的关键词。"
+            st.session_state.search_results = results
+            # 将结果存入缓存
+            if results:
+                st.session_state.search_cache[raw_query] = results
+                msg = f"✅ 已为您精选 {len(results)} 条政策，并按投研权威度排序。"
+            else:
+                msg = f"❌ 未找到与“{raw_query}”相关的权威政策。建议尝试更简短的关键词。"
             
         st.session_state.messages.append({
             "role": "assistant",

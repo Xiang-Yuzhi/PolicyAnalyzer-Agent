@@ -32,7 +32,7 @@ class CompareAgent:
             api_key=Config.DASHSCOPE_API_KEY,
             base_url="https://dashscope.aliyuncs.com/compatible-mode/v1",
             model=Config.MODEL_NAME,
-            temperature=0.3,
+            temperature=0.3, # 组合分析需要更强的逻辑叙述能力
             model_kwargs={
                 "response_format": {"type": "json_object"}
             }

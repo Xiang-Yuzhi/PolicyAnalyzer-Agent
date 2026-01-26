@@ -58,7 +58,7 @@ class RouterAgent:
             api_key=Config.DASHSCOPE_API_KEY,
             base_url="https://dashscope.aliyuncs.com/compatible-mode/v1",
             model="qwen-flash",  # 切换为 qwen-flash 以获得更快的响应速度
-            temperature=0.1,
+            temperature=0,
             model_kwargs={
                 "response_format": {"type": "json_object"}
             }
