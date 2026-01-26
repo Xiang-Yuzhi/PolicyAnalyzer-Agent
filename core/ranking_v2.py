@@ -97,12 +97,12 @@ class HybridRanker:
             weights: 各维度权重，默认 {"authority": 0.3, "bm25": 0.3, "semantic": 0.3, "recency": 0.1}
         """
         # 调整权重：提升权威度权重，减少新闻媒体结果
-        # 调整权重：平衡权威度与相关性，恢复召回效果
+        # 权重回滚 V3.4: 内容相关性优先
         self.weights = weights or {
-            "authority": 0.35,  # 从 0.45 降到 0.35
-            "bm25": 0.30,       # 从 0.25 升到 0.30
-            "semantic": 0.25,   # 从 0.20 升到 0.25
-            "recency": 0.10
+            "authority": 0.25,  # 降低权威度权重
+            "bm25": 0.35,       # 恢复 BM25 权重
+            "semantic": 0.35,   # 恢复语义相似度权重
+            "recency": 0.05     # 降低时效性权重
         }
         
         # 初始化轻量级验证模型
@@ -173,12 +173,11 @@ class HybridRanker:
             
         candidates.sort(key=lambda x: x.final_score, reverse=True)
         
-        # 5. 第三阶段：LLM 智能身份验证 (对 Top 8 进行召回清洗)
-        self._llm_verify_policy(candidates[:8], temperature=temperature)
-        # 重新排序 (LLM 验证后的可能会被彻底剔除)
-        candidates.sort(key=lambda x: x.final_score, reverse=True)
+        # 5. 第五阶段：战略回滚 (V3.4) - 暂时禁用 LLM 身份验证以保障召回率
+        # self._llm_verify_policy(candidates[:8], temperature=temperature)
+        # candidates.sort(key=lambda x: x.final_score, reverse=True)
         
-        # 6. 返回结果 (过滤掉权威度极低或 LLM 判定为非政策的文件)
+        # 6. 返回结果 (回归简洁算法过滤)
         result = []
         for sp in candidates:
             # 彻底剔除判定为 0 的噪音
