@@ -22,114 +22,135 @@ EFUND_BLUE = "#004e9d"
 
 st.markdown(f"""
     <style>
-    /* 全局按钮样式 */
-    div.stButton > button {{
-        background-color: {EFUND_BLUE} !important;
-        color: white !important;
-        border-radius: 8px;
-        border: none;
-        padding: 0.5rem 1rem;
-        transition: all 0.3s;
-    }}
-    div.stButton > button:hover {{
-        background-color: #003a75 !important;
-        box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+    /* 全局背景色 */
+    .stApp {{
+        background-color: #f8f9fa;
     }}
     
-    /* 聊天消息样式 */
-    .user-message {{
-        background-color: #e3f2fd;
-        padding: 12px 16px;
-        border-radius: 12px;
-        margin: 8px 0;
-        border-left: 4px solid {EFUND_BLUE};
-    }}
-    .agent-message {{
-        background-color: #f5f5f5;
-        padding: 12px 16px;
-        border-radius: 12px;
-        margin: 8px 0;
-        border-left: 4px solid #28a745;
+    /* 对齐侧边栏 Logo */
+    [data-testid="stSidebar"] {{
+        background-color: white;
+        border-right: 1px solid #e0e0e0;
     }}
     
-    /* 政策卡片样式 */
-    .policy-card {{
+    /* 聊天消息气泡基础 */
+    .chat-bubble {{
+        padding: 12px 18px;
+        border-radius: 20px;
+        margin: 10px 0;
+        max-width: 85%;
+        font-size: 1rem;
+        line-height: 1.5;
+        box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+    }}
+    
+    /* 用户消息 (右侧，浅蓝底) */
+    .user-container {{
+        display: flex;
+        justify-content: flex-end;
+        margin-bottom: 15px;
+    }}
+    .user-bubble {{
+        background-color: #e8eaf6;
+        color: #1a1a1a;
+        border-bottom-right-radius: 5px;
+        border-left: 3px solid #7986cb;
+    }}
+    
+    /* 助手消息 (左侧，白底) */
+    .agent-container {{
+        display: flex;
+        justify-content: flex-start;
+        margin-bottom: 15px;
+    }}
+    .agent-bubble {{
+        background-color: white;
+        color: #1a1a1a;
+        border-bottom-left-radius: 5px;
+        border-left: 3px solid #28a745;
+        border: 1px solid #eee;
+    }}
+    
+    /* 搜索结果卡片 (Wireframe 2) */
+    .result-card {{
         background: white;
-        border: 1px solid #e0e0e0;
-        border-radius: 8px;
-        padding: 12px;
-        margin: 8px 0;
-        transition: all 0.2s;
-    }}
-    .policy-card:hover {{
-        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        border: 1px solid #e0e0ff;
+        border-left: 5px solid #004e9d;
+        border-radius: 12px;
+        padding: 18px;
+        margin: 15px 0;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.03);
     }}
     
-    /* 暂存标签样式 */
-    .cached-tag {{
-        display: inline-block;
-        background-color: #28a745;
-        color: white;
-        padding: 2px 8px;
-        border-radius: 4px;
-        font-size: 12px;
-        margin-left: 8px;
+    .result-header {{
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 10px;
     }}
     
-    .section-header {{
-        font-size: 1.1rem;
-        font-weight: bold;
-        color: #004e9d;
-        margin-top: 1rem;
-        margin-bottom: 0.5rem;
+    .result-title {{
+        font-weight: 600;
+        font-size: 1.05rem;
+        color: #333;
     }}
-
-    /* 搜索结果摘要样式 */
-    .snippet-text {{
+    
+    .result-meta {{
+        color: #777;
+        font-size: 0.85rem;
+    }}
+    
+    .result-snippet {{
         color: #555;
-        font-size: 0.9rem;
+        font-size: 0.92rem;
         line-height: 1.6;
-        margin-top: 6px;
-        min-height: 4.2em; /* 确保至少3行空间 */
+        padding: 10px;
+        background: #fcfcff;
+        border-radius: 6px;
+        margin: 10px 0;
     }}
     
+    /* 侧边栏“购物车”卡片样式 */
+    .cart-item {{
+        background: white;
+        border: 1px solid #eee;
+        border-radius: 8px;
+        padding: 10px;
+        margin-bottom: 8px;
+        font-size: 0.85rem;
+    }}
+    
+    /* 按钮样式微调 */
+    div.stButton > button {{
+        border-radius: 20px !important;
+        font-weight: 500 !important;
+        border: none !important;
+    }}
+    
+    /* 针对侧边栏小按钮的特殊样式 */
+    .side-small-btn {{
+        font-size: 10px !important;
+        padding: 2px 6px !important;
+    }}
+    
+    /* 查看原文链接样式 */
     .source-link {{
         color: #004e9d;
         text-decoration: none;
+        font-weight: 500;
         font-size: 0.85rem;
-        margin-left: 10px;
     }}
     .source-link:hover {{
         text-decoration: underline;
     }}
-    
-    /* 浅色模式优化 */
-    @media (prefers-color-scheme: light) {{
-        .stMarkdown, .stText, p, span, li {{
-            color: #262730 !important;
-        }}
-    }}
-    
-    /* 深色模式适配 */
-    @media (prefers-color-scheme: dark) {{
-        h1, h2, h3 {{
-            color: #4da3ff !important;
-        }}
-        .stMarkdown {{
-            color: #e0e0e0;
-        }}
-        .user-message {{
-            background-color: #1e3a5f;
-            color: white;
-        }}
-        .agent-message {{
-            background-color: #2d2d2d;
-            color: #e0e0e0;
-        }}
-        .policy-card {{
-            background: #1e1e1e;
-            border-color: #444;
-        }}
+
+    /* 报告摘要汇总气泡 */
+    .report-summary-bubble {{
+        background-color: #f0f4ff;
+        border: 1px solid #d0deff;
+        border-radius: 15px;
+        padding: 15px;
+        margin: 15px 0;
     }}
     </style>
     """, unsafe_allow_html=True)
@@ -154,156 +175,165 @@ if 'trigger_compare' not in st.session_state:
 if 'trigger_single_analysis' not in st.session_state:
     st.session_state.trigger_single_analysis = False
 
-# --- 侧边栏 ---
+# --- 侧边栏 (政策购物车) ---
 with st.sidebar:
     logo_path = "assets/efund_logo.png"
     if os.path.exists(logo_path):
         st.image(logo_path, width=180)
     else:
         st.markdown("### 📊 EFund")
-    
+    st.caption("版本号: v2.5-Agent")
     st.divider()
-    st.info("🤖 Phase 2: 对话式政策分析")
     
-    # 暂存池展示
-    st.subheader("📌 暂存池")
+    # 政策购物车展示
+    st.subheader("🛒 政策购物车")
     if st.session_state.policy_cache:
         for i, p in enumerate(st.session_state.policy_cache):
-            col1, col2 = st.columns([4, 1])
-            with col1:
-                st.write(f"{i+1}. {p['title'][:25]}...")
-            with col2:
-                if st.button("✕", key=f"remove_{i}"):
-                    st.session_state.policy_cache.pop(i)
-                    st.rerun()
+            with st.container():
+                st.markdown(f"""
+                <div class="cart-item">
+                    <b>{i+1}. {p['title'][:20]}...</b>
+                </div>
+                """, unsafe_allow_html=True)
+                
+                c1, c2 = st.columns(2)
+                with c1:
+                    if st.button("🔍 分析", key=f"side_ana_{i}", use_container_width=True):
+                        st.session_state.selected_for_analysis = p
+                        st.session_state.trigger_single_analysis = True
+                        st.rerun()
+                with c2:
+                    if st.button("🗑️ 删除", key=f"side_del_{i}", use_container_width=True):
+                        st.session_state.policy_cache.pop(i)
+                        st.rerun()
         
         st.divider()
         col1, col2 = st.columns(2)
         with col1:
-            if st.button("🔍 组合分析", use_container_width=True):
+            if st.button("💼 组合分析", key="side_compare", use_container_width=True):
                 st.session_state.trigger_compare = True
         with col2:
-            if st.button("🗑️ 清空", use_container_width=True):
+            if st.button("🧹 清空", key="side_clear", use_container_width=True):
                 st.session_state.policy_cache = []
                 st.rerun()
     else:
-        st.caption("暂无暂存政策")
-        st.caption("💡 搜索后点击[暂存]或用自然语言选择")
+        st.info("购物车空空如也，快去检索并加入吧~")
 
 # --- 主界面 ---
-st.title("📜 政策检索分析 Agent")
-st.caption("基于 LangChain + Qwen-Max 的智能投研助手 | 支持多轮对话与组合分析")
+st.markdown('<h1 style="margin-bottom: 0px;">🏂 政策检索分析助手</h1>', unsafe_allow_html=True)
+st.markdown('<p style="color: #666; font-size: 0.95rem; margin-top: 0px;">基于 LangChain + Qwen 的 Multi-Agents 智能投研助手</p>', unsafe_allow_html=True)
 st.divider()
 
-# --- 对话历史展示 (仅显示最新2条) ---
+# --- 对话历史展示 ---
 chat_container = st.container()
 with chat_container:
-    # 只展示最后2条消息，避免界面冗余
-    recent_messages = st.session_state.messages[-2:] if len(st.session_state.messages) > 2 else st.session_state.messages
+    # 只展示最后几条消息，保持界面简洁
+    recent_messages = st.session_state.messages[-4:] if len(st.session_state.messages) > 4 else st.session_state.messages
     for msg in recent_messages:
         if msg["role"] == "user":
-            st.markdown(f'<div class="user-message">👤 {msg["content"]}</div>', unsafe_allow_html=True)
+            st.markdown(f"""
+            <div class="user-container">
+                <div class="chat-bubble user-bubble">👤 {msg["content"]}</div>
+            </div>
+            """, unsafe_allow_html=True)
         else:
-            st.markdown(f'<div class="agent-message">🤖 {msg["content"]}</div>', unsafe_allow_html=True)
+            st.markdown(f"""
+            <div class="agent-container">
+                <div class="chat-bubble agent-bubble">🤖 {msg["content"]}</div>
+            </div>
+            """, unsafe_allow_html=True)
 
 # --- 进度感知占位符 (紧贴对话展示) ---
 progress_container = st.container()
 
 # --- 搜索结果展示区 ---
 if st.session_state.search_results:
-    st.markdown('<p class="section-header">📋 精选检索结果</p>', unsafe_allow_html=True)
+    st.markdown('### 📊 精选检索结果', unsafe_allow_html=True)
     
     for idx, r in enumerate(st.session_state.search_results):
         is_cached = any(p['link'] == r['link'] for p in st.session_state.policy_cache)
         
-        # 统一标题格式：标题 + 日期 + 机构
-        full_title = f"{r['title']} [{r.get('date', '未知')}] ({r.get('source', '未知')})"
+        st.markdown(f"""
+        <div class="result-card">
+            <div class="result-header">
+                <span class="result-title">{idx+1}. {r.get('source', '未知')}: {r['title']} [{r.get('date', '近期')}]</span>
+                <a href="{r["link"]}" target="_blank" class="source-link">🔗 查看原文</a>
+            </div>
+            <div class="result-snippet">{r.get("snippet", "")}</div>
+        </div>
+        """, unsafe_allow_html=True)
         
-        with st.container():
-            col1, col2 = st.columns([6, 1])
-            with col1:
-                st.markdown(f"**{idx+1}. {r['title']}**")
-                
-                # 元信息行（日期、机构、链接）
-                meta_parts = []
-                if r.get('date'):
-                    meta_parts.append(f"📅 {r['date']}")
-                if r.get('source'):
-                    meta_parts.append(f"🏛️ {r['source']}")
-                if is_cached:
-                    meta_parts.append('<span class="cached-tag">已暂存</span>')
-                meta_parts.append(f'<a href="{r["link"]}" target="_blank" class="source-link">🔗 查看原文</a>')
-                st.markdown(" | ".join(meta_parts), unsafe_allow_html=True)
-                
-                # 完整原文摘要 (保持真实3行)
-                st.markdown(f'<div class="snippet-text">{r.get("snippet", "")}</div>', unsafe_allow_html=True)
-            
-            with col2:
-                if not is_cached:
-                    if st.button("📌 暂存", key=f"cache_{idx}", use_container_width=True):
-                        st.session_state.policy_cache.append(r)
-                        st.rerun()
-                
-                if st.button("🔍 分析", key=f"analyze_{idx}", use_container_width=True):
-                    st.session_state.selected_for_analysis = r
-                    st.session_state.trigger_single_analysis = True
+        c1, c2, c3 = st.columns([1, 1, 4])
+        with c1:
+            if not is_cached:
+                if st.button("🛒 加入购物车", key=f"cache_{idx}", use_container_width=True):
+                    st.session_state.policy_cache.append(r)
                     st.rerun()
-            st.divider()
+            else:
+                st.button("✅ 已在库中", key=f"added_{idx}", disabled=True, use_container_width=True)
+        with c2:
+            if st.button("🔍 深度分析", key=f"analyze_{idx}", use_container_width=True):
+                st.session_state.selected_for_analysis = r
+                st.session_state.trigger_single_analysis = True
+                st.rerun()
+        st.divider()
 
 # --- 分析结果展示 ---
 if st.session_state.analysis_result:
     res = st.session_state.analysis_result
     
-    st.success("✅ 分析完成")
+    st.markdown('<h3 style="color: #004e9d;">📝 报告要点汇总</h3>', unsafe_allow_html=True)
     
-    # 核心观点
-    st.subheader("💡 核心观点")
-    bullets = res.get('chat_bullets', [])
-    for b in bullets:
-        st.markdown(f"- {b}")
+    # 核心观点气泡
+    bullets_html = "".join([f"<li>{b}</li>" for b in res.get('chat_bullets', [])])
+    st.markdown(f"""
+    <div class="report-summary-bubble">
+        <ul style="margin-bottom: 0px;">
+            {bullets_html}
+        </ul>
+    </div>
+    """, unsafe_allow_html=True)
     
-    # 报告下载
-    col1, col2 = st.columns([3, 1])
-    with col2:
+    # 操作栏 (展开详情 + 下载)
+    c1, c2, c3 = st.columns([2, 1, 1])
+    with c1:
+        show_details = st.toggle("📄 展开报告详情", value=False)
+    
+    with c2:
         report_file = "EFund_Policy_Report.docx"
         ReportGenerator.generate_docx(res, report_file)
-        
-        # 处理文件名
         p_info = res.get('selected_policy', {})
-        pa_list = res.get('policies_analyzed', [])
-        if p_info:
-            fn = f"政策解读_{p_info.get('title', '报告')[:10]}.docx"
-        else:
-            fn = f"组合分析报告_{len(pa_list)}份.docx"
-            
-        with open(report_file, "rb") as file:
-            st.download_button(
-                label="📥 下载word报告",
-                data=file,
-                file_name=fn,
-                mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-                use_container_width=True
-            )
+        fn = f"政策解读_{p_info.get('title', '报告')[:10]}.docx" if p_info else "分析报告.docx"
         
-        # 新增：原始 PDF 下载链接
+        with open(report_file, "rb") as f:
+            st.download_button("📥 下载Word报告", f, file_name=fn, use_container_width=True)
+            
+    with c3:
         pdf_url = res.get('pdf_download_url')
         if pdf_url:
             st.link_button("📄 查看原始PDF", pdf_url, use_container_width=True)
     
-    if res.get('policies_analyzed'):
-        st.subheader(f"📊 组合分析结果 ({len(res['policies_analyzed'])} 份)")
-    
-    # 详细内容折叠
-    with st.expander("📄 查看完整分析"):
+    if show_details:
+        st.divider()
         content = res.get('docx_content', {})
         for section, paragraphs in content.items():
-            st.markdown(f"### {section}")
+            st.markdown(f"#### {section}")
             for p in paragraphs:
                 st.write(p)
             st.divider()
 
+st.divider()
+
 # --- 用户输入区 ---
-user_input = st.chat_input("请输入您的问题或指令（如：帮我找2024年减持新规）")
+with st.container():
+    # PDF 上传增强 (Wireframe 1)
+    uploaded_file = st.file_uploader("📂 上传政策 PDF 进行深度分析 (可选)", type=['pdf'])
+    if uploaded_file:
+         if st.button("🚀 开始分析上传文件", use_container_width=True):
+             st.info("🔄 正在解析上传的 PDF 文件...")
+             # 这里后续可以接入 pdf_extractor 处理解析内容
+             
+    user_input = st.chat_input("请输入您的问题或指令（如：帮我找2024年减持新规）")
 
 if user_input:
     # 添加用户消息
