@@ -97,10 +97,11 @@ class HybridRanker:
             weights: 各维度权重，默认 {"authority": 0.3, "bm25": 0.3, "semantic": 0.3, "recency": 0.1}
         """
         # 调整权重：提升权威度权重，减少新闻媒体结果
+        # 调整权重：平衡权威度与相关性，恢复召回效果
         self.weights = weights or {
-            "authority": 0.45,  # 提升权威度权重
-            "bm25": 0.25,
-            "semantic": 0.20,
+            "authority": 0.35,  # 从 0.45 降到 0.35
+            "bm25": 0.30,       # 从 0.25 升到 0.30
+            "semantic": 0.25,   # 从 0.20 升到 0.25
             "recency": 0.10
         }
         
@@ -434,15 +435,15 @@ class HybridRanker:
                 for i, label in enumerate(labels):
                     if i < len(candidates):
                         if label == "B":
-                            # 对公司披露类彻底降权
-                            candidates[i].authority_score = 0.0
-                            candidates[i].final_score = 0.0
+                            # 对公司披露类“软降权”，防止误解
+                            candidates[i].authority_score *= 0.1
+                            candidates[i].final_score *= 0.1
                         elif label == "C":
                             # 对新闻资讯等降权
                             candidates[i].final_score *= 0.3
                         elif label == "A":
                             # 对纯正政策原文加成
-                            candidates[i].final_score = min(1.0, candidates[i].final_score * 1.2)
+                            candidates[i].final_score = min(1.0, candidates[i].final_score * 1.25)
         except Exception as e:
             print(f"⚠️ LLM 身份验证失败: {e}")
             pass
