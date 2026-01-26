@@ -127,16 +127,25 @@ class HybridRanker:
         # 4. 第二阶段：权威度重排
         # 在相关候选人中，权威度越高越靠前
         # 最终得分 = 0.6 * 权威度 + 0.4 * 初始得分
+        # 新增：官方书名加成 (如果标题命中关键词)
         for sp in candidates:
-            sp.final_score = 0.6 * sp.authority_score + 0.4 * sp.final_score
+            bonus = 0.0
+            title = sp.policy.get('title', '').lower()
+            # 简单判断：如果查询词中有较长片段出现在标题中，给予加成
+            if len(query) > 4 and query.lower() in title:
+                bonus = 0.2
+            elif any(len(kw) > 2 and kw.lower() in title for kw in query.split()):
+                bonus = 0.1
+                
+            sp.final_score = 0.6 * (sp.authority_score + bonus) + 0.4 * sp.final_score
             
         candidates.sort(key=lambda x: x.final_score, reverse=True)
         
-        # 5. 返回结果 (过滤掉权威度极低的新闻，但保持最后的兜底)
+        # 5. 返回结果 (过滤掉权威度极低的新闻，但保障至少有5条列表)
         result = []
         for sp in candidates:
-            # 只有在结果足够丰富时才进行严格权威度过滤
-            if len(candidates) > 5 and sp.authority_score < 0.25:
+            # 如果结果已经超过5条，则按之前逻辑进行权威度过滤
+            if len(result) >= 5 and sp.authority_score < 0.25:
                 continue
                 
             policy = sp.policy.copy()
@@ -148,13 +157,21 @@ class HybridRanker:
             }
             result.append(policy)
             
-        # 兜底：如果过滤后一个结果都没有，直接返回原始候选（不带过滤）
-        if not result and candidates:
-            for sp in candidates[:10]:
-                policy = sp.policy.copy()
-                policy["_scores"] = {"final": round(sp.final_score, 3), "note": "fallback"}
-                result.append(policy)
-                
+        # 补齐逻辑：如果过滤后结果不足5条，从 candidates 中按序补齐（不带过滤）
+        if len(result) < 5 and len(candidates) > len(result):
+            seen_links = {p['link'] for p in result}
+            for sp in candidates:
+                if len(result) >= 5:
+                    break
+                if sp.policy['link'] not in seen_links:
+                    policy = sp.policy.copy()
+                    policy["_scores"] = {
+                        "authority": round(sp.authority_score, 3),
+                        "final": round(sp.final_score, 3),
+                        "note": "backfill"
+                    }
+                    result.append(policy)
+
         return result
     
     def _filter_official(self, policies: List[Dict]) -> List[Dict]:
@@ -185,10 +202,10 @@ class HybridRanker:
         link = policy.get("link", "")
         combined = f"{source} {link}".lower()
         
-        # 检查是否为新闻媒体 (降权)
+        # 检查是否为新闻媒体 (强势压低分数)
         for news_domain in self.NEWS_DOMAINS:
             if news_domain in link.lower():
-                return 0.2  # 新闻媒体得分很低
+                return 0.05  # 新闻媒体分极低，确保位列末端
         
         # 检查各层级
         for level, keywords in self.AUTHORITY_LEVELS.items():
