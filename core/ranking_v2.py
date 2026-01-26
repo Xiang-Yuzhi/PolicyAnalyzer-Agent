@@ -201,6 +201,12 @@ class HybridRanker:
         
         return filtered if filtered else policies  # 如果全被过滤，返回原列表
     
+    def _calc_authority(self, policy: Dict) -> float:
+        """计算权威度分数 (0-1)"""
+        source = policy.get("source", "")
+        link = policy.get("link", "")
+        combined = f"{source} {link}".lower()
+        
         # 1. 检查是否为噪音页面 (报考、系统等) - 最高优先级拦截
         combined_text = f"{policy.get('title', '')} {policy.get('snippet', '')}".lower()
         for noise in self.NOISE_KEYWORDS:
