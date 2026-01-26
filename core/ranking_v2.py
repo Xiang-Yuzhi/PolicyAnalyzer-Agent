@@ -65,11 +65,12 @@ class HybridRanker:
         "yicai.com", "caixin.com", "wallstreetcn.com", "cls.cn"
     ]
     
-    # 噪音关键词黑名单 (针对系统、门户、报考以及非政策类的公司披露文件)
+    # 噪音关键词黑名单 (针对系统、门户、报考以及明显的公司财务/招股类文件)
+    # 移除了 "公告" 和 "摘要"，因为许多政策原文以这些词结尾
     NOISE_KEYWORDS = [
         "系统", "登录", "登入", "注册", "报考", "培训", "考试", "报名", 
         "下载中心", "工作门户", "管理平台", "网上信息系统", "人员管理系统",
-        "招股书", "招股说明书", "中报", "年报", "季报", "摘要", "公告", 
+        "招股书", "招股说明书", "招募说明书", "中报", "年报", "季报",
         "上市公告书", "分红公告", "业绩快报"
     ]
     
@@ -209,28 +210,37 @@ class HybridRanker:
         link = policy.get("link", "")
         combined = f"{source} {link}".lower()
         
-        # 1. 检查是否为噪音页面 (报考、系统等) - 最高优先级拦截
+        # 1. 检查是否为噪音页面 (报考、系统、金融披露等) - 最高优先级拦截
         combined_text = f"{policy.get('title', '')} {policy.get('snippet', '')}".lower()
+        
+        # 优化：如果是官方域名 (.gov.cn 或 .org.cn)，对“公告”类噪音豁免
+        is_high_auth_domain = ".gov.cn" in link or ".org.cn" in link
+        
         for noise in self.NOISE_KEYWORDS:
             if noise.lower() in combined_text:
+                # 如果是高权威域名且仅仅是包含“系统”以外的次级噪音词，可以适当放宽
+                if is_high_auth_domain and noise not in ["系统", "登录", "报考", "考试"]:
+                    continue
                 return 0.0  # 彻底降权
         
-        # 2. 检查是否为新闻媒体 (强势压低分数)
-        for news_domain in self.NEWS_DOMAINS:
-            if news_domain in link.lower():
-                return 0.05  # 新闻媒体分极低
-        
-        # 3. 检查层级权威度
+        # 2. 检查各层级权威度
         for level, keywords in self.AUTHORITY_LEVELS.items():
             for kw in keywords:
                 if kw.lower() in combined:
-                    # Level 1 得分 1.0, Level 8 得分 0.125
+                    # Level 1 得分最高 (1.0)，Level 8 得分最低 (0.125)
                     return 1.0 - (level - 1) * 0.125
         
-        # 4. 检查是否为 .gov.cn
+        # 3. 检查是否为官方域名
         if ".gov.cn" in link:
             return 0.9
+        if ".org.cn" in link: # 中基协等
+            return 0.85
         
+        # 4. 检查是否为新闻媒体 (降权处理)
+        for news_domain in self.NEWS_DOMAINS:
+            if news_domain in link.lower():
+                return 0.1  # 新闻媒体给低分但非零分
+                
         return 0.3  # 默认分数
     
     def _calc_bm25_scores(self, scored_list: List[ScoredPolicy], query: str):

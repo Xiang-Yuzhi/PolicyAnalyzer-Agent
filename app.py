@@ -357,6 +357,15 @@ if user_input:
                 )
                 results = ranker.rank(results, parsed.search_query)
             
+            # --- 终极兜底：如果 AI 优化的词也没结果，尝试原始输入词 ---
+            if not results:
+                st.write("📡 正在尝试使用原始指令进行补全搜索...")
+                results = PolicySearcher.search(
+                    parsed.search_query,
+                    source_preference='all'
+                )
+                results = ranker.rank(results, parsed.search_query)
+            
             status.update(label="✅ 检索与排序完成！", state="complete", expanded=False)
         
         st.session_state.search_results = results
