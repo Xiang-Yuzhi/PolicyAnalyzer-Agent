@@ -62,7 +62,10 @@ class HybridRanker:
         7: ["财经媒体", "第一财经", "财新", "证券时报", "中国证券报"],
         8: ["门户网站", "新浪", "网易", "搜狐", "百度"]
     }
-    
+    # 官方域名白名单
+    GOV_DOMAINS = [
+        ".gov.cn", ".org.cn", "csrc.gov.cn", "sse.com.cn", 
+        "szse.cn", "pbc.gov.cn", "nafmii.org.cn", "amac.org.cn",
         "circ.gov.cn", "mof.gov.cn", "ndrc.gov.cn"
     ]
     
@@ -104,7 +107,7 @@ class HybridRanker:
         # 初始化轻量级验证模型
         self.llm = ChatOpenAI(
             model_name="qwen-turbo",  # 使用轻量快慢分层
-            openai_api_key=Config.DASH_SCOPE_API_KEY,
+            openai_api_key=Config.DASHSCOPE_API_KEY,
             openai_api_base="https://dashscope.aliyuncs.com/compatible-mode/v1",
             temperature=0
         )
