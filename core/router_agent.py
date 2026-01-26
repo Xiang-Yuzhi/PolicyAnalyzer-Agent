@@ -163,26 +163,25 @@ class RouterAgent:
 
     def extract_keywords(self, query: str) -> Dict[str, Any]:
         """
-        从自然语言查询中提取结构化的搜索参数
-        
-        Returns:
-            {
-                "keywords": ["关键词1", "关键词2"],
-                "time_range": "2024",
-                "source_preference": "gov",  # gov/all
-                "original_query": "原始查询"
-            }
+        从自然语言查询中提取结构化的搜索参数，并推理用户可能寻找的官方文件名称
         """
-        extract_prompt = """分析用户的搜索需求，提取结构化参数：
+        extract_prompt = """你是一名资深政策研究员。分析用户的模糊搜索需求，精准推理其可能寻找的官方政策文件。
 
 用户输入: {query}
 
+【你的任务】
+1. 理解用户真实意图，识别其寻找的政策领域（如：减持、分红、基金业绩基准等）
+2. 基于金融监管知识，推理该领域最可能的官方文件名称（如用户说"公募基金业绩比较基准新规"，应推理为《公开募集证券投资基金业绩比较基准指引》）
+3. 提取发布时间（如有）
+4. 生成优化后的、可用于搜索引擎的高精度查询词
+
 输出 JSON 格式：
 {{
-  "keywords": ["提取的核心关键词列表"],
-  "time_range": "时间范围（如 2024、2023-2024、null）",
-  "source_preference": "gov 或 all（用户是否明确要求官方来源）",
-  "refined_query": "优化后的搜索词组合"
+  "inferred_official_title": "推理出的最可能的官方文件全称（如果能推理出），否则为 null",
+  "keywords": ["核心关键词1", "核心关键词2"],
+  "time_range": "时间范围（如 2024、2025-01、null）",
+  "source_preference": "gov 或 all",
+  "refined_query": "优化后的搜索词（应包含推理出的文件名或核心术语）"
 }}"""
 
         prompt = ChatPromptTemplate.from_messages([
@@ -193,7 +192,13 @@ class RouterAgent:
         
         try:
             response = chain.invoke({"query": query})
-            return json.loads(response)
+            result = json.loads(response)
+            
+            # 如果推理出了官方文件名，将其作为主要搜索词
+            if result.get("inferred_official_title"):
+                result["refined_query"] = result["inferred_official_title"]
+            
+            return result
         except Exception as e:
             print(f"❌ 关键词提取失败: {e}")
             return {

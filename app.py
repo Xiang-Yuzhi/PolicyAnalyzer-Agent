@@ -86,14 +86,11 @@ st.markdown(f"""
 
     /* 搜索结果摘要样式 */
     .snippet-text {{
-        color: #666;
+        color: #555;
         font-size: 0.9rem;
-        line-height: 1.5;
-        margin-top: 4px;
-        display: -webkit-box;
-        -webkit-line-clamp: 3; /* 最多显示3行 */
-        -webkit-box-orient: vertical;
-        overflow: hidden;
+        line-height: 1.6;
+        margin-top: 6px;
+        min-height: 4.2em; /* 确保至少3行空间 */
     }}
     
     .source-link {{
@@ -209,6 +206,9 @@ with chat_container:
         else:
             st.markdown(f'<div class="agent-message">🤖 {msg["content"]}</div>', unsafe_allow_html=True)
 
+# --- 进度感知占位符 (紧贴对话展示) ---
+progress_container = st.container()
+
 # --- 搜索结果展示区 ---
 if st.session_state.search_results:
     st.markdown('<p class="section-header">📋 精选检索结果</p>', unsafe_allow_html=True)
@@ -222,17 +222,20 @@ if st.session_state.search_results:
         with st.container():
             col1, col2 = st.columns([6, 1])
             with col1:
-                st.markdown(f"**{idx+1}. {full_title}**")
+                st.markdown(f"**{idx+1}. {r['title']}**")
                 
-                # 其他标签和链接
-                tag_html = ""
+                # 元信息行（日期、机构、链接）
+                meta_parts = []
+                if r.get('date'):
+                    meta_parts.append(f"📅 {r['date']}")
+                if r.get('source'):
+                    meta_parts.append(f"🏛️ {r['source']}")
                 if is_cached:
-                    tag_html += '<span class="cached-tag">已在暂存池</span>'
+                    meta_parts.append('<span class="cached-tag">已暂存</span>')
+                meta_parts.append(f'<a href="{r["link"]}" target="_blank" class="source-link">🔗 查看原文</a>')
+                st.markdown(" | ".join(meta_parts), unsafe_allow_html=True)
                 
-                tag_html += f'<a href="{r["link"]}" target="_blank" class="source-link">🔗 查看原文</a>'
-                st.markdown(tag_html, unsafe_allow_html=True)
-                
-                # 完整内容摘要 (确保至少2行)
+                # 完整原文摘要 (保持真实3行)
                 st.markdown(f'<div class="snippet-text">{r.get("snippet", "")}</div>', unsafe_allow_html=True)
             
             with col2:
@@ -292,9 +295,6 @@ if st.session_state.analysis_result:
             for p in paragraphs:
                 st.write(p)
             st.divider()
-
-# --- 进度感知占位符 ---
-progress_container = st.container()
 
 # --- 用户输入区 ---
 user_input = st.chat_input("请输入您的问题或指令（如：帮我找2024年减持新规）")
