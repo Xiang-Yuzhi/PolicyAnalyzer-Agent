@@ -84,15 +84,9 @@ class HybridRanker:
     def rank(self, policies: List[Dict], query: str, 
              filter_official_only: bool = False) -> List[Dict]:
         """
-        对政策列表进行混合排序
-        
-        Args:
-            policies: 原始政策列表
-            query: 用户查询
-            filter_official_only: 是否仅保留官方来源
-        
-        Returns:
-            排序后的政策列表（带评分）
+        对政策列表进行混合排序 (两阶段逻辑)
+        1. 根据相关性(BM25+语义)和时效性初步排序
+        2. 取前15个候选，根据权威度重新排序
         """
         if not policies:
             return []
@@ -101,64 +95,58 @@ class HybridRanker:
         if filter_official_only:
             policies = self._filter_official(policies)
         
-        # 2. 计算各维度分数
         scored = [ScoredPolicy(policy=p) for p in policies]
         
-        # 2.1 权威度评分
+        # 2. 计算各维度分数
+        # 2.1 权威度
         for sp in scored:
             sp.authority_score = self._calc_authority(sp.policy)
         
-        # 2.2 BM25 评分
+        # 2.2 相关性 (BM25)
         if HAS_BM25:
             self._calc_bm25_scores(scored, query)
         
-        # 2.3 语义评分（暂用标题关键词匹配代替，后续可接入 Embedding）
+        # 2.3 相关性 (语义)
         self._calc_semantic_scores(scored, query)
         
-        # 2.4 时效性评分
+        # 2.4 时效性
         for sp in scored:
             sp.recency_score = self._calc_recency(sp.policy)
         
-        # 3. 加权融合
+        # 3. 第一阶段：初步筛选 (相关性 + 时效性)
+        # 权重: 相关性 0.7, 时效性 0.3
         for sp in scored:
-            sp.final_score = (
-                self.weights["authority"] * sp.authority_score +
-                self.weights["bm25"] * sp.bm25_score +
-                self.weights["semantic"] * sp.semantic_score +
-                self.weights["recency"] * sp.recency_score
-            )
-        
-        # 4. 排序
+            relevance = (sp.bm25_score + sp.semantic_score) / 2
+            sp.final_score = 0.7 * relevance + 0.3 * sp.recency_score
+            
         scored.sort(key=lambda x: x.final_score, reverse=True)
         
-        # 5. 返回带评分的政策 (过滤掉低权威度的新闻报道)
+        # 取前 15 个作为精排候选
+        candidates = scored[:15]
+        
+        # 4. 第二阶段：权威度重排
+        # 在相关候选人中，权威度越高越靠前
+        # 最终得分 = 0.6 * 权威度 + 0.4 * 初始得分
+        for sp in candidates:
+            sp.final_score = 0.6 * sp.authority_score + 0.4 * sp.final_score
+            
+        candidates.sort(key=lambda x: x.final_score, reverse=True)
+        
+        # 5. 返回结果 (过滤掉权威度极低的新闻)
         result = []
-        for sp in scored:
-            # 过滤掉权威度过低的结果 (新闻类)
-            if sp.authority_score < 0.35:
+        for sp in candidates:
+            if sp.authority_score < 0.25: # 放宽一点点过滤
                 continue
                 
             policy = sp.policy.copy()
             policy["_scores"] = {
                 "authority": round(sp.authority_score, 3),
-                "bm25": round(sp.bm25_score, 3),
-                "semantic": round(sp.semantic_score, 3),
+                "relevance": round((sp.bm25_score + sp.semantic_score) / 2, 3),
                 "recency": round(sp.recency_score, 3),
                 "final": round(sp.final_score, 3)
             }
             result.append(policy)
-        
-        # 如果过滤后结果太少，放宽阈值
-        if len(result) < 3:
-            result = []
-            for sp in scored[:10]:  # 取前10个
-                policy = sp.policy.copy()
-                policy["_scores"] = {
-                    "authority": round(sp.authority_score, 3),
-                    "final": round(sp.final_score, 3)
-                }
-                result.append(policy)
-        
+            
         return result
     
     def _filter_official(self, policies: List[Dict]) -> List[Dict]:

@@ -83,6 +83,28 @@ st.markdown(f"""
         margin-top: 1rem;
         margin-bottom: 0.5rem;
     }}
+
+    /* 搜索结果摘要样式 */
+    .snippet-text {{
+        color: #666;
+        font-size: 0.9rem;
+        line-height: 1.5;
+        margin-top: 4px;
+        display: -webkit-box;
+        -webkit-line-clamp: 3; /* 最多显示3行 */
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+    }}
+    
+    .source-link {{
+        color: #004e9d;
+        text-decoration: none;
+        font-size: 0.85rem;
+        margin-left: 10px;
+    }}
+    .source-link:hover {{
+        text-decoration: underline;
+    }}
     
     /* 浅色模式优化 */
     @media (prefers-color-scheme: light) {{
@@ -201,11 +223,17 @@ if st.session_state.search_results:
             col1, col2 = st.columns([6, 1])
             with col1:
                 st.markdown(f"**{idx+1}. {full_title}**")
-                if is_cached:
-                    st.markdown('<span class="cached-tag">已在暂存池</span>', unsafe_allow_html=True)
                 
-                # 紧凑显示 snippet
-                st.caption(r.get('snippet', '')[:150] + "...")
+                # 其他标签和链接
+                tag_html = ""
+                if is_cached:
+                    tag_html += '<span class="cached-tag">已在暂存池</span>'
+                
+                tag_html += f'<a href="{r["link"]}" target="_blank" class="source-link">🔗 查看原文</a>'
+                st.markdown(tag_html, unsafe_allow_html=True)
+                
+                # 完整内容摘要 (确保至少2行)
+                st.markdown(f'<div class="snippet-text">{r.get("snippet", "")}</div>', unsafe_allow_html=True)
             
             with col2:
                 if not is_cached:
