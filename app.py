@@ -131,6 +131,18 @@ st.markdown(f"""
             border-color: #444;
         }}
     }}
+
+    /* 粘性底部容器 (进度条 + 输入框) */
+    .sticky-bottom {{
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        width: 100%;
+        background: white;
+        padding: 10px 20px;
+        z-index: 999;
+        border-top: 1px solid #eee;
+    }}
     </style>
     """, unsafe_allow_html=True)
 
@@ -206,7 +218,9 @@ with chat_container:
         else:
             st.markdown(f'<div class="agent-message">🤖 {msg["content"]}</div>', unsafe_allow_html=True)
 
-# --- 进度感知占位符 (紧贴对话展示) ---
+# --- 底部固定区 (进度条 + 输入框) ---
+# 注意：Streamlit 的容器不支持直接 fixed 定位，这里通过逻辑顺序优化
+# 将进度条放置在最下方，紧邻输入框
 progress_container = st.container()
 
 # --- 搜索结果展示区 ---

@@ -61,9 +61,14 @@ class HybridRanker:
     
     # 新闻媒体域名黑名单 (降权处理)
     NEWS_DOMAINS = [
-        "sina.com", "sohu.com", "163.com", "qq.com", "baidu.com",
         "eastmoney.com", "hexun.com", "10jqka.com.cn", "cnstock.com",
         "yicai.com", "caixin.com", "wallstreetcn.com", "cls.cn"
+    ]
+    
+    # 噪音关键词黑名单 (针对系统、门户、报考等非政策原文页面)
+    NOISE_KEYWORDS = [
+        "系统", "登录", "登入", "注册", "报考", "培训", "考试", "报名", 
+        "下载中心", "工作门户", "管理平台", "网上信息系统", "人员管理系统"
     ]
     
     def __init__(self, weights: Optional[Dict[str, float]] = None):
@@ -196,25 +201,25 @@ class HybridRanker:
         
         return filtered if filtered else policies  # 如果全被过滤，返回原列表
     
-    def _calc_authority(self, policy: Dict) -> float:
-        """计算权威度分数 (0-1)"""
-        source = policy.get("source", "")
-        link = policy.get("link", "")
-        combined = f"{source} {link}".lower()
+        # 1. 检查是否为噪音页面 (报考、系统等) - 最高优先级拦截
+        combined_text = f"{policy.get('title', '')} {policy.get('snippet', '')}".lower()
+        for noise in self.NOISE_KEYWORDS:
+            if noise.lower() in combined_text:
+                return 0.0  # 彻底降权
         
-        # 检查是否为新闻媒体 (强势压低分数)
+        # 2. 检查是否为新闻媒体 (强势压低分数)
         for news_domain in self.NEWS_DOMAINS:
             if news_domain in link.lower():
-                return 0.05  # 新闻媒体分极低，确保位列末端
+                return 0.05  # 新闻媒体分极低
         
-        # 检查各层级
+        # 3. 检查层级权威度
         for level, keywords in self.AUTHORITY_LEVELS.items():
             for kw in keywords:
                 if kw.lower() in combined:
-                    # Level 1 得分最高 (1.0)，Level 8 得分最低 (0.125)
+                    # Level 1 得分 1.0, Level 8 得分 0.125
                     return 1.0 - (level - 1) * 0.125
         
-        # 检查是否为 .gov.cn
+        # 4. 检查是否为 .gov.cn
         if ".gov.cn" in link:
             return 0.9
         
