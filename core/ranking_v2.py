@@ -132,10 +132,11 @@ class HybridRanker:
             
         candidates.sort(key=lambda x: x.final_score, reverse=True)
         
-        # 5. 返回结果 (过滤掉权威度极低的新闻)
+        # 5. 返回结果 (过滤掉权威度极低的新闻，但保持最后的兜底)
         result = []
         for sp in candidates:
-            if sp.authority_score < 0.25: # 放宽一点点过滤
+            # 只有在结果足够丰富时才进行严格权威度过滤
+            if len(candidates) > 5 and sp.authority_score < 0.25:
                 continue
                 
             policy = sp.policy.copy()
@@ -147,6 +148,13 @@ class HybridRanker:
             }
             result.append(policy)
             
+        # 兜底：如果过滤后一个结果都没有，直接返回原始候选（不带过滤）
+        if not result and candidates:
+            for sp in candidates[:10]:
+                policy = sp.policy.copy()
+                policy["_scores"] = {"final": round(sp.final_score, 3), "note": "fallback"}
+                result.append(policy)
+                
         return result
     
     def _filter_official(self, policies: List[Dict]) -> List[Dict]:

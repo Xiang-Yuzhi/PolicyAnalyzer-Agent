@@ -337,9 +337,14 @@ if user_input:
             status.update(label="✅ 检索与排序完成！", state="complete", expanded=False)
         
         st.session_state.search_results = results
+        if results:
+            msg = f"✅ 已为您精选 {len(results)} 条政策，并按投研权威度排序。"
+        else:
+            msg = f"❌ 未找到与“{search_params.get('refined_query', parsed.search_query)}”相关的权威政策。建议尝试更简短的关键词。"
+            
         st.session_state.messages.append({
             "role": "assistant",
-            "content": f"✅ 已为您精选 {len(results)} 条政策，并按投研权威度排序。"
+            "content": msg
         })
     
     elif parsed.intent == Intent.SELECT_AND_CONTINUE:

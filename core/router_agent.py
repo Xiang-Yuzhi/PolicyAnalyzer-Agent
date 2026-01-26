@@ -142,7 +142,10 @@ class RouterAgent:
         chain = prompt | self.llm | StrOutputParser()
         
         try:
-            response = chain.invoke({})
+            response = chain.invoke({
+                "context_str": context_str if context_str else "无",
+                "user_input": user_input
+            })
             result = json.loads(response)
             
             return ParsedIntent(
