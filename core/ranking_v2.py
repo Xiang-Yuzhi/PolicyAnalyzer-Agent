@@ -113,7 +113,7 @@ class HybridRanker:
         )
     
     def rank(self, policies: List[Dict], query: str, 
-             filter_official_only: bool = False) -> List[Dict]:
+             filter_official_only: bool = False, temperature: float = 0.0) -> List[Dict]:
         """
         对政策列表进行混合排序 (两阶段逻辑)
         1. 根据相关性(BM25+语义)和时效性初步排序
@@ -173,7 +173,7 @@ class HybridRanker:
         candidates.sort(key=lambda x: x.final_score, reverse=True)
         
         # 5. 第三阶段：LLM 智能身份验证 (对 Top 8 进行召回清洗)
-        self._llm_verify_policy(candidates[:8])
+        self._llm_verify_policy(candidates[:8], temperature=temperature)
         # 重新排序 (LLM 验证后的可能会被彻底剔除)
         candidates.sort(key=lambda x: x.final_score, reverse=True)
         
@@ -394,7 +394,7 @@ class HybridRanker:
         
         return tokens
         
-    def _llm_verify_policy(self, candidates: List[ScoredPolicy]):
+    def _llm_verify_policy(self, candidates: List[ScoredPolicy], temperature: float = 0.0):
         """使用 LLM 对候选结果进行身份判定"""
         if not candidates:
             return
@@ -421,7 +421,8 @@ class HybridRanker:
             ("user", verify_prompt)
         ])
         
-        chain = prompt | self.llm | StrOutputParser()
+        llm_with_temp = self.llm.bind(temperature=temperature)
+        chain = prompt | llm_with_temp | StrOutputParser()
         
         try:
             # 批量验证，减少调用次数

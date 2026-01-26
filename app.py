@@ -6,7 +6,7 @@ import os
 from core.search import PolicySearcher
 from core.analyzer import PolicyAnalyzer
 from core.document_gen import ReportGenerator
-from core.router_agent import RouterAgent, Intent
+from core.router_agent import RouterAgent, Intent, ParsedIntent
 from core.compare_agent import CompareAgent
 from core.ranking_v2 import HybridRanker
 
@@ -167,6 +167,10 @@ if 'trigger_single_analysis' not in st.session_state:
     st.session_state.trigger_single_analysis = False
 if 'search_cache' not in st.session_state:
     st.session_state.search_cache = {}  # 搜索结果缓存：{query: results}
+if 'current_raw_query' not in st.session_state:
+    st.session_state.current_raw_query = None
+if 'is_result_from_cache' not in st.session_state:
+    st.session_state.is_result_from_cache = False
 
 # --- 侧边栏 ---
 with st.sidebar:
@@ -222,7 +226,23 @@ with chat_container:
 
 # --- 搜索结果展示区 ---
 if st.session_state.search_results:
-    st.markdown('<p class="section-header">📋 精选检索结果</p>', unsafe_allow_html=True)
+    col_h1, col_h2 = st.columns([5, 1])
+    with col_h1:
+        header_text = "📋 精选检索结果"
+        if st.session_state.is_result_from_cache:
+            header_text += " (来自缓存 ♻️)"
+        st.markdown(f'<p class="section-header">{header_text}</p>', unsafe_allow_html=True)
+    with col_h2:
+        if st.session_state.is_result_from_cache:
+            if st.button("🔄 重新检索", use_container_width=True, help="清除当前搜索缓存并尝试生成新的结果"):
+                # 清除当前缓存
+                q = st.session_state.current_raw_query
+                if q in st.session_state.search_cache:
+                    del st.session_state.search_cache[q]
+                # 注入一个特殊消息来触发强制检索
+                st.session_state.messages.append({"role": "user", "content": f"强制刷新检索: {q}"})
+                st.rerun()
+    st.divider()
     
     for idx, r in enumerate(st.session_state.search_results):
         is_cached = any(p['link'] == r['link'] for p in st.session_state.policy_cache)
@@ -325,24 +345,38 @@ if user_input:
     st.session_state.messages.append({"role": "user", "content": user_input})
     
     # 意图解析
-    context = {
-        "search_results": st.session_state.search_results,
-        "cached_policies": st.session_state.policy_cache
-    }
-    parsed = st.session_state.router.parse(user_input, context)
+    if user_input.startswith("强制刷新检索:"):
+        parsed = ParsedIntent(intent=Intent.SEARCH, search_query=user_input.replace("强制刷新检索:", "").strip())
+    else:
+        context = {
+            "search_results": st.session_state.search_results,
+            "cached_policies": st.session_state.policy_cache
+        }
+        parsed = st.session_state.router.parse(user_input, context)
     
     # 根据意图执行不同操作
     if parsed.intent == Intent.SEARCH:
         # 首先检查缓存
         raw_query = parsed.search_query.strip()
-        if raw_query in st.session_state.search_cache:
+        # 处理强制刷新指令
+        is_force_refresh = user_input.startswith("强制刷新检索:")
+        if is_force_refresh:
+            raw_query = user_input.replace("强制刷新检索:", "").strip()
+            if raw_query in st.session_state.search_cache:
+                del st.session_state.search_cache[raw_query]
+
+        if raw_query in st.session_state.search_cache and not is_force_refresh:
             st.session_state.search_results = st.session_state.search_cache[raw_query]
+            st.session_state.is_result_from_cache = True
+            st.session_state.current_raw_query = raw_query
             msg = f"♻️ 已从缓存为您恢复 “{raw_query}” 的精选结果。"
         else:
             # 进度展示 (在输入框上方)
             with progress_container.status("🔍 正在开启投研智能检索...", expanded=True) as status:
                 st.write("📡 提取意图关键词...")
-                search_params = st.session_state.router.extract_keywords(parsed.search_query)
+                # 刷新时：稍微调高温度以增加多样性
+                temp = 0.2 if is_force_refresh else 0.0
+                search_params = st.session_state.router.extract_keywords(parsed.search_query, temperature=temp) 
                 
                 st.write(f"🌐 正在检索: {search_params['refined_query']}...")
                 results = PolicySearcher.search(
@@ -353,7 +387,8 @@ if user_input:
                 
                 st.write("⚖️ 正在执行权威度与相关性混合排序 (Ranking V2)...")
                 ranker = HybridRanker()
-                results = ranker.rank(results, parsed.search_query)
+                results = ranker.rank(results, parsed.search_query, temperature=temp)
+                
                 
                 # --- 自动补齐重试逻辑 ---
                 if not results and search_params.get('source_preference') == 'gov':
@@ -363,7 +398,7 @@ if user_input:
                         source_preference='all',
                         time_range=search_params.get('time_range')
                     )
-                    results = ranker.rank(results, parsed.search_query)
+                    results = ranker.rank(results, parsed.search_query, temperature=temp)
                 
                 # --- 终极兜底 ---
                 if not results:
@@ -372,11 +407,14 @@ if user_input:
                         parsed.search_query,
                         source_preference='all'
                     )
-                    results = ranker.rank(results, parsed.search_query)
+                    results = ranker.rank(results, parsed.search_query, temperature=temp)
                 
                 status.update(label="✅ 检索与排序完成！", state="complete", expanded=False)
             
             st.session_state.search_results = results
+            st.session_state.is_result_from_cache = False
+            st.session_state.current_raw_query = raw_query
+            
             # 将结果存入缓存
             if results:
                 st.session_state.search_cache[raw_query] = results

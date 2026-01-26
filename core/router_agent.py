@@ -164,7 +164,7 @@ class RouterAgent:
                 message="正在为您检索..."
             )
 
-    def extract_keywords(self, query: str) -> Dict[str, Any]:
+    def extract_keywords(self, query: str, temperature: float = 0.0) -> Dict[str, Any]:
         """
         从自然语言查询中提取结构化的搜索参数，并推理用户可能寻找的官方文件名称
         """
@@ -193,7 +193,8 @@ class RouterAgent:
             ("user", extract_prompt)
         ])
         
-        chain = prompt | self.llm | StrOutputParser()
+        llm_with_temp = self.llm.bind(temperature=temperature)
+        chain = prompt | llm_with_temp | StrOutputParser()
         
         try:
             response = chain.invoke({"query": query})
