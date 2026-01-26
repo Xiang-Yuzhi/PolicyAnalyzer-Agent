@@ -357,18 +357,27 @@ if user_input:
             })
         
         if parsed.search_query:
-            search_params = st.session_state.router.extract_keywords(parsed.search_query)
-            results = PolicySearcher.search(
-                search_params['refined_query'],
-                source_preference=search_params.get('source_preference', 'all'),
-                time_range=search_params.get('time_range')
-            )
-            ranker = HybridRanker()
-            results = ranker.rank(results, parsed.search_query)
+            with progress_container.status(f"🔍 正在继续搜索: {parsed.search_query}...", expanded=True) as status:
+                st.write("📡 提取意图关键词...")
+                search_params = st.session_state.router.extract_keywords(parsed.search_query)
+                
+                st.write(f"🌐 正在检索: {search_params['refined_query']}...")
+                results = PolicySearcher.search(
+                    search_params['refined_query'],
+                    source_preference=search_params.get('source_preference', 'all'),
+                    time_range=search_params.get('time_range')
+                )
+                
+                st.write("⚖️ 正在执行权威度与相关性混合排序...")
+                ranker = HybridRanker()
+                results = ranker.rank(results, parsed.search_query)
+                
+                status.update(label="✅ 搜索更新完成！", state="complete", expanded=False)
+                
             st.session_state.search_results = results
             st.session_state.messages.append({
                 "role": "assistant",
-                "content": f"✅ 找到 {len(results)} 条新的相关政策。"
+                "content": f"✅ 已根据您的新需求找到 {len(results)} 条相关政策。"
             })
     
     elif parsed.intent == Intent.SELECT_ONLY:

@@ -194,9 +194,14 @@ class RouterAgent:
             response = chain.invoke({"query": query})
             result = json.loads(response)
             
-            # 如果推理出了官方文件名，将其作为主要搜索词
-            if result.get("inferred_official_title"):
-                result["refined_query"] = result["inferred_official_title"]
+            # 优化：不再盲目覆盖，而是进行关键词混合
+            # 这样既能搜到精准文件名，也能兼容模糊关键词
+            inferred = result.get("inferred_official_title")
+            keywords = " ".join(result.get("keywords", []))
+            
+            if inferred and inferred != "null":
+                # 混合搜索：官方名 + 核心关键词
+                result["refined_query"] = f"{inferred} {keywords}".strip()
             
             return result
         except Exception as e:

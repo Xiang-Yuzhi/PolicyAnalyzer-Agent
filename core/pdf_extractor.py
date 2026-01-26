@@ -110,31 +110,32 @@ class PDFExtractor:
             return []
     
     @staticmethod
-    def download_and_parse_pdf(pdf_url: str, max_pages: int = 50) -> Tuple[str, Optional[str]]:
+    def download_and_parse_pdf(pdf_url: str, max_pages: int = 10) -> Tuple[str, Optional[str]]:
         """
-        下载 PDF 并提取全文内容
+        下载 PDF 并提取全文内容 (限制前10页以平衡性能与资源)
         
         Returns:
-            (提取的文本内容, 错误信息或None)
+            (提取 of 的文本内容, 错误信息或None)
         """
         if not HAS_PYMUPDF:
             return "", "PyMuPDF 未安装"
         
         try:
             print(f"📥 正在下载 PDF: {pdf_url[:80]}...")
-            response = requests.get(pdf_url, headers=PDFExtractor.HEADERS, timeout=30, verify=False)
+            # 增加超时保护
+            response = requests.get(pdf_url, headers=PDFExtractor.HEADERS, timeout=20, verify=False)
             response.raise_for_status()
             
-            # 检查是否为 PDF
-            content_type = response.headers.get('Content-Type', '')
-            if 'application/pdf' not in content_type and not pdf_url.lower().endswith('.pdf'):
-                # 尝试解析，可能是重定向后的 PDF
-                pass
+            # 检查文件大小 (如超过 15MB 则跳过下载，避免内存崩溃)
+            file_size = len(response.content)
+            if file_size > 15 * 1024 * 1024:
+                return "", f"文件过大 ({file_size / 1024 / 1024:.1f}MB)，跳过深度下载以节省资源"
             
             # 使用 PyMuPDF 解析
             doc = fitz.open(stream=response.content, filetype="pdf")
             
             text_parts = []
+            # 限制页数，政策文件核心通常在前10页
             page_count = min(len(doc), max_pages)
             
             for page_num in range(page_count):
@@ -146,6 +147,9 @@ class PDFExtractor:
             doc.close()
             
             full_text = "\n\n".join(text_parts)
+            # 限制总字符，避免 token 爆炸
+            full_text = full_text[:30000]
+            
             print(f"✅ PDF 解析完成: {len(full_text)} 字符, {page_count} 页")
             
             return full_text, None
