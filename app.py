@@ -334,6 +334,16 @@ if user_input:
             ranker = HybridRanker()
             results = ranker.rank(results, parsed.search_query)
             
+            # --- 新增：自动补齐重试逻辑 ---
+            if not results and search_params.get('source_preference') == 'gov':
+                st.write("⚠️ 官方渠道未找到，正在尝试扩大搜索范围...")
+                results = PolicySearcher.search(
+                    search_params['refined_query'],
+                    source_preference='all',
+                    time_range=search_params.get('time_range')
+                )
+                results = ranker.rank(results, parsed.search_query)
+            
             status.update(label="✅ 检索与排序完成！", state="complete", expanded=False)
         
         st.session_state.search_results = results

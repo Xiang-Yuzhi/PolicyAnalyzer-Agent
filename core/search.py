@@ -28,8 +28,9 @@ class PolicySearcher:
         refined_query = query
         
         # 处理官方来源偏好
+        # 处理官方来源偏好：扩展到协会与交易所，而不仅仅是 .gov.cn
         if source_preference == "gov":
-            refined_query += " site:.gov.cn"
+            refined_query += " (site:gov.cn OR site:amac.org.cn OR site:sse.com.cn OR site:szse.cn OR site:bse.cn)"
         
         # 处理时间范围
         if time_range:
