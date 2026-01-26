@@ -21,141 +21,115 @@ st.set_page_config(
 EFUND_BLUE = "#004e9d"
 
 st.markdown(f"""
-    /* 集中式聊天布局 (ChatGPT 风格) */
-    .main-chat-wrapper {{
-        max-width: 850px;
-        margin: 0 auto;
-        padding: 20px;
+    <style>
+    /* 全局按钮样式 */
+    div.stButton > button {{
+        background-color: {EFUND_BLUE} !important;
+        color: white !important;
+        border-radius: 8px;
+        border: none;
+        padding: 0.5rem 1rem;
+        transition: all 0.3s;
     }}
-
-    /* 全局背景色 */
-    .stApp {{
-        background-color: #fcfcfc;
-    }}
-    
-    /* 对齐侧边栏 Logo */
-    [data-testid="stSidebar"] {{
-        background-color: white;
-        border-right: 1px solid #e0e0e0;
+    div.stButton > button:hover {{
+        background-color: #003a75 !important;
+        box-shadow: 0 4px 8px rgba(0,0,0,0.1);
     }}
     
-    /* 聊天消息气泡基础 */
-    .chat-bubble {{
-        padding: 14px 20px;
-        border-radius: 18px;
-        margin: 10px 0;
-        max-width: 85%;
-        font-size: 1rem;
-        line-height: 1.6;
-        box-shadow: 0 2px 5px rgba(0,0,0,0.03);
-    }}
-    
-    /* 用户消息 (右侧) */
-    .user-container {{
-        display: flex;
-        justify-content: flex-end;
-        margin-bottom: 20px;
-    }}
-    .user-bubble {{
-        background-color: #f1f3f4;
-        color: #1a1a1a;
-        border-bottom-right-radius: 4px;
-    }}
-    
-    /* 助手消息 (左侧) */
-    .agent-container {{
-        display: flex;
-        justify-content: flex-start;
-        margin-bottom: 20px;
-    }}
-    .agent-bubble {{
-        background-color: white;
-        color: #1a1a1a;
-        border-bottom-left-radius: 4px;
-        border: 1px solid #eef0f2;
-    }}
-    
-    /* 搜索结果卡片 (Wireframe 2 - 优化对齐) */
-    .result-card {{
-        background: white;
-        border: 1px solid #ebeef5;
+    /* 聊天消息样式 */
+    .user-message {{
+        background-color: #e3f2fd;
+        padding: 12px 16px;
         border-radius: 12px;
-        padding: 20px;
-        margin: 15px 0;
-        display: flex;
-        gap: 20px;
-        transition: all 0.3s ease;
+        margin: 8px 0;
+        border-left: 4px solid {EFUND_BLUE};
     }}
-    .result-card:hover {{
-        box-shadow: 0 4px 15px rgba(0,0,0,0.05);
-        border-color: #dcdfe6;
-    }}
-    
-    .result-content {{
-        flex: 1;
-    }}
-    
-    .result-actions {{
-        width: 140px;
-        display: flex;
-        flex-direction: column;
-        gap: 10px;
-        justify-content: center;
-    }}
-    
-    .result-title {{
-        font-weight: 600;
-        font-size: 1.1rem;
-        color: #2c3e50;
-        margin-bottom: 8px;
-        display: block;
-    }}
-    
-    .result-snippet {{
-        color: #5e6d82;
-        font-size: 0.95rem;
-        line-height: 1.6;
-        margin-top: 10px;
-        /* 强制 3 行截断 */
-        display: -webkit-box;
-        -webkit-line-clamp: 3;
-        -webkit-box-orient: vertical;
-        overflow: hidden;
-    }}
-    
-    /* 引导示例框样式 */
-    .prompt-box {{
-        background: #fdfdfe;
-        border: 1px solid #edf2f7;
-        box-shadow: 0 4px 6px rgba(160,174,192,0.1);
-        padding: 25px;
+    .agent-message {{
+        background-color: #f5f5f5;
+        padding: 12px 16px;
         border-radius: 12px;
-        margin-top: 40px;
+        margin: 8px 0;
+        border-left: 4px solid #28a745;
     }}
     
-    .prompt-text {{
-        color: #004e9d;
-        font-weight: 500;
-        font-size: 1.1rem;
-        padding-top: 8px;
-    }}
-    
-    /* 侧边栏卡片 */
-    .cart-item {{
+    /* 政策卡片样式 */
+    .policy-card {{
         background: white;
-        border: 1px solid #f0f0f0;
-        border-radius: 10px;
+        border: 1px solid #e0e0e0;
+        border-radius: 8px;
         padding: 12px;
-        margin-bottom: 10px;
-        font-size: 0.9rem;
+        margin: 8px 0;
+        transition: all 0.2s;
+    }}
+    .policy-card:hover {{
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }}
+    
+    /* 暂存标签样式 */
+    .cached-tag {{
+        display: inline-block;
+        background-color: #28a745;
+        color: white;
+        padding: 2px 8px;
+        border-radius: 4px;
+        font-size: 12px;
+        margin-left: 8px;
+    }}
+    
+    .section-header {{
+        font-size: 1.1rem;
+        font-weight: bold;
+        color: #004e9d;
+        margin-top: 1rem;
+        margin-bottom: 0.5rem;
     }}
 
-    /* 下载等操作按钮排版 */
-    .action-bar {{
-        display: flex;
-        gap: 15px;
-        align-items: center;
-        margin: 15px 0;
+    /* 搜索结果摘要样式 */
+    .snippet-text {{
+        color: #555;
+        font-size: 0.9rem;
+        line-height: 1.6;
+        margin-top: 6px;
+        min-height: 4.2em; /* 确保至少3行空间 */
+    }}
+    
+    .source-link {{
+        color: #004e9d;
+        text-decoration: none;
+        font-size: 0.85rem;
+        margin-left: 10px;
+    }}
+    .source-link:hover {{
+        text-decoration: underline;
+    }}
+    
+    /* 浅色模式优化 */
+    @media (prefers-color-scheme: light) {{
+        .stMarkdown, .stText, p, span, li {{
+            color: #262730 !important;
+        }}
+    }}
+    
+    /* 深色模式适配 */
+    @media (prefers-color-scheme: dark) {{
+        h1, h2, h3 {{
+            color: #4da3ff !important;
+        }}
+        .stMarkdown {{
+            color: #e0e0e0;
+        }}
+        .user-message {{
+            background-color: #1e3a5f;
+            color: white;
+        }}
+        .agent-message {{
+            background-color: #2d2d2d;
+            color: #e0e0e0;
+        }}
+        .policy-card {{
+            background: #1e1e1e;
+            border-color: #444;
+        }}
     }}
     </style>
     """, unsafe_allow_html=True)
@@ -179,190 +153,157 @@ if 'trigger_compare' not in st.session_state:
     st.session_state.trigger_compare = False
 if 'trigger_single_analysis' not in st.session_state:
     st.session_state.trigger_single_analysis = False
-if 'active_stage' not in st.session_state:
-    st.session_state.active_stage = "WELCOME"
 
-# --- 侧边栏 (政策购物车) ---
+# --- 侧边栏 ---
 with st.sidebar:
     logo_path = "assets/efund_logo.png"
     if os.path.exists(logo_path):
         st.image(logo_path, width=180)
     else:
         st.markdown("### 📊 EFund")
-    st.caption("版本号: v2.5-Agent")
-    st.divider()
     
-    # 政策购物车展示
-    st.subheader("🛒 政策购物车")
+    st.divider()
+    st.info("🤖 Phase 2: 对话式政策分析")
+    
+    # 暂存池展示
+    st.subheader("📌 暂存池")
     if st.session_state.policy_cache:
         for i, p in enumerate(st.session_state.policy_cache):
-            with st.container():
-                st.markdown(f"""
-                <div class="cart-item">
-                    <b>{i+1}. {p['title'][:20]}...</b>
-                </div>
-                """, unsafe_allow_html=True)
-                
-                c1, c2 = st.columns(2)
-                with c1:
-                    if st.button("🔍 分析", key=f"side_ana_{i}", use_container_width=True):
-                        st.session_state.selected_for_analysis = p
-                        st.session_state.active_stage = "ANALYSIS"
-                        st.session_state.trigger_single_analysis = True
-                        st.rerun()
-                with c2:
-                    if st.button("🗑️ 删除", key=f"side_del_{i}", use_container_width=True):
-                        st.session_state.policy_cache.pop(i)
-                        st.rerun()
+            col1, col2 = st.columns([4, 1])
+            with col1:
+                st.write(f"{i+1}. {p['title'][:25]}...")
+            with col2:
+                if st.button("✕", key=f"remove_{i}"):
+                    st.session_state.policy_cache.pop(i)
+                    st.rerun()
         
         st.divider()
         col1, col2 = st.columns(2)
         with col1:
-            if st.button("💼 组合分析", key="side_compare", use_container_width=True):
-                st.session_state.active_stage = "ANALYSIS"
+            if st.button("🔍 组合分析", use_container_width=True):
                 st.session_state.trigger_compare = True
-                st.rerun()
         with col2:
-            if st.button("🧹 清空", key="side_clear", use_container_width=True):
+            if st.button("🗑️ 清空", use_container_width=True):
                 st.session_state.policy_cache = []
                 st.rerun()
     else:
-        st.info("购物车空空如也，快去检索并加入吧~")
+        st.caption("暂无暂存政策")
+        st.caption("💡 搜索后点击[暂存]或用自然语言选择")
 
-# --- 主界面渲染控制 ---
-st.markdown('<div class="main-chat-wrapper">', unsafe_allow_html=True)
+# --- 主界面 ---
+st.title("📜 政策检索分析 Agent")
+st.caption("基于 LangChain + Qwen-Max 的智能投研助手 | 支持多轮对话与组合分析")
+st.divider()
 
-if st.session_state.active_stage == "WELCOME":
-    st.markdown("""
-        <div style="text-align: center; padding: 60px 20px;">
-            <h1 style="color: #2c3e50; font-size: 2.5rem; margin-bottom: 20px;">您好，我是您的政策检索分析助手</h1>
-            <p style="color: #606266; font-size: 1.25rem;">
-                您可以输入关键词或者通过自然语言向我发起查询询问～<br>
-                也可以通过左侧或下方上传 PDF 文件进行分析。<br>
-                我会尽力帮你找到匹配的政策，并协助展开分析。
-            </p>
-            <div class="prompt-box">
-                <p style="color: #909399; margin-bottom: 12px; font-size: 1rem;">您可以试试从这个开始：</p>
-                <div class="prompt-text">“帮我寻找公募基金业绩比较基准新规”</div>
-            </div>
-        </div>
-    """, unsafe_allow_html=True)
+# --- 对话历史展示 (仅显示最新2条) ---
+chat_container = st.container()
+with chat_container:
+    # 只展示最后2条消息，避免界面冗余
+    recent_messages = st.session_state.messages[-2:] if len(st.session_state.messages) > 2 else st.session_state.messages
+    for msg in recent_messages:
+        if msg["role"] == "user":
+            st.markdown(f'<div class="user-message">👤 {msg["content"]}</div>', unsafe_allow_html=True)
+        else:
+            st.markdown(f'<div class="agent-message">🤖 {msg["content"]}</div>', unsafe_allow_html=True)
 
-# --- 对话历史展示 ---
-if st.session_state.active_stage != "WELCOME":
-    chat_container = st.container()
-    with chat_container:
-        recent_messages = st.session_state.messages[-4:] if len(st.session_state.messages) > 4 else st.session_state.messages
-        for msg in recent_messages:
-            if msg["role"] == "user":
-                st.markdown(f'<div class="user-container"><div class="chat-bubble user-bubble">{msg["content"]}</div></div>', unsafe_allow_html=True)
-            else:
-                st.markdown(f'<div class="agent-container"><div class="chat-bubble agent-bubble">{msg["content"]}</div></div>', unsafe_allow_html=True)
-
-# --- 进度感知占位符 ---
+# --- 进度感知占位符 (紧贴对话展示) ---
 progress_container = st.container()
 
-# --- 阶段 2: 搜索结果展示 ---
-if st.session_state.active_stage == "SEARCH_RESULTS" and st.session_state.search_results:
-    st.markdown('<h3 style="color: #2c3e50; margin-bottom: 20px;">📊 精选检索结果</h3>', unsafe_allow_html=True)
+# --- 搜索结果展示区 ---
+if st.session_state.search_results:
+    st.markdown('<p class="section-header">📋 精选检索结果</p>', unsafe_allow_html=True)
     
     for idx, r in enumerate(st.session_state.search_results):
         is_cached = any(p['link'] == r['link'] for p in st.session_state.policy_cache)
         
-        # 结果内容区
-        st.markdown(f"""
-        <div class="result-card">
-            <div class="result-content">
-                <div class="result-header">
-                    <span class="result-title">{idx+1}. {r.get('source', '未知')}: {r['title']}</span>
-                </div>
-                <div style="color: #909399; font-size: 0.85rem; margin-bottom: 10px;">发布日期: {r.get('date', '近期')}</div>
-                <div class="result-snippet">{r.get("snippet", "")}</div>
-                <div style="margin-top: 15px;">
-                    <a href="{r["link"]}" target="_blank" class="source-link">🔗 查看原文</a>
-                </div>
-            </div>
-            <div class="result-actions">
-        """, unsafe_allow_html=True)
+        # 统一标题格式：标题 + 日期 + 机构
+        full_title = f"{r['title']} [{r.get('date', '未知')}] ({r.get('source', '未知')})"
         
-        # 按钮区排布 (放在渲染后的 div 内部)
-        col_btn_1 = st.container()
-        with col_btn_1:
-            if not is_cached:
-                if st.button("🛒 加入购物车", key=f"cache_{idx}", use_container_width=True):
-                    st.session_state.policy_cache.append(r)
-                    st.rerun()
-            else:
-                st.button("✅ 已在库中", key=f"added_{idx}", disabled=True, use_container_width=True)
+        with st.container():
+            col1, col2 = st.columns([6, 1])
+            with col1:
+                st.markdown(f"**{idx+1}. {r['title']}**")
+                
+                # 元信息行（日期、机构、链接）
+                meta_parts = []
+                if r.get('date'):
+                    meta_parts.append(f"📅 {r['date']}")
+                if r.get('source'):
+                    meta_parts.append(f"🏛️ {r['source']}")
+                if is_cached:
+                    meta_parts.append('<span class="cached-tag">已暂存</span>')
+                meta_parts.append(f'<a href="{r["link"]}" target="_blank" class="source-link">🔗 查看原文</a>')
+                st.markdown(" | ".join(meta_parts), unsafe_allow_html=True)
+                
+                # 完整原文摘要 (保持真实3行)
+                st.markdown(f'<div class="snippet-text">{r.get("snippet", "")}</div>', unsafe_allow_html=True)
             
-            if st.button("🔍 深度分析", key=f"analyze_{idx}", use_container_width=True):
-                st.session_state.selected_for_analysis = r
-                st.session_state.active_stage = "ANALYSIS"
-                st.session_state.trigger_single_analysis = True
-                st.rerun()
-        
-        st.markdown('</div></div>', unsafe_allow_html=True)
-        st.divider()
+            with col2:
+                if not is_cached:
+                    if st.button("📌 暂存", key=f"cache_{idx}", use_container_width=True):
+                        st.session_state.policy_cache.append(r)
+                        st.rerun()
+                
+                if st.button("🔍 分析", key=f"analyze_{idx}", use_container_width=True):
+                    st.session_state.selected_for_analysis = r
+                    st.session_state.trigger_single_analysis = True
+                    st.rerun()
+            st.divider()
 
-# --- 阶段 3: 分析结果展示 ---
-if st.session_state.active_stage == "ANALYSIS" and st.session_state.analysis_result:
+# --- 分析结果展示 ---
+if st.session_state.analysis_result:
     res = st.session_state.analysis_result
     
-    st.markdown('<h3 style="color: #004e9d;">📝 报告要点汇总</h3>', unsafe_allow_html=True)
+    st.success("✅ 分析完成")
     
-    # 核心观点气泡
-    bullets_html = "".join([f"<li>{b}</li>" for b in res.get('chat_bullets', [])])
-    st.markdown(f"""
-    <div class="report-summary-bubble">
-        <ul style="margin-bottom: 0px;">
-            {bullets_html}
-        </ul>
-    </div>
-    """, unsafe_allow_html=True)
+    # 核心观点
+    st.subheader("💡 核心观点")
+    bullets = res.get('chat_bullets', [])
+    for b in bullets:
+        st.markdown(f"- {b}")
     
-    # 操作栏 (展开详情 + 下载)
-    c1, c2, c3 = st.columns([2, 1, 1])
-    with c1:
-        show_details = st.toggle("📄 展开报告详情", value=False)
-    
-    with c2:
+    # 报告下载
+    col1, col2 = st.columns([3, 1])
+    with col2:
         report_file = "EFund_Policy_Report.docx"
         ReportGenerator.generate_docx(res, report_file)
-        p_info = res.get('selected_policy', {})
-        fn = f"政策解读_{p_info.get('title', '报告')[:10]}.docx" if p_info else "分析报告.docx"
         
-        with open(report_file, "rb") as f:
-            st.download_button("📥 下载Word报告", f, file_name=fn, use_container_width=True)
+        # 处理文件名
+        p_info = res.get('selected_policy', {})
+        pa_list = res.get('policies_analyzed', [])
+        if p_info:
+            fn = f"政策解读_{p_info.get('title', '报告')[:10]}.docx"
+        else:
+            fn = f"组合分析报告_{len(pa_list)}份.docx"
             
-    with c3:
+        with open(report_file, "rb") as file:
+            st.download_button(
+                label="📥 下载word报告",
+                data=file,
+                file_name=fn,
+                mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                use_container_width=True
+            )
+        
+        # 新增：原始 PDF 下载链接
         pdf_url = res.get('pdf_download_url')
         if pdf_url:
             st.link_button("📄 查看原始PDF", pdf_url, use_container_width=True)
     
-    if show_details:
-        st.divider()
+    if res.get('policies_analyzed'):
+        st.subheader(f"📊 组合分析结果 ({len(res['policies_analyzed'])} 份)")
+    
+    # 详细内容折叠
+    with st.expander("📄 查看完整分析"):
         content = res.get('docx_content', {})
         for section, paragraphs in content.items():
-            st.markdown(f"#### {section}")
+            st.markdown(f"### {section}")
             for p in paragraphs:
                 st.write(p)
             st.divider()
 
-st.divider()
-
-# --- 用户输入区 (居中包裹) ---
-with st.container():
-    # PDF 上传增强 (Wireframe 1)
-    uploaded_file = st.file_uploader("📂 上传政策 PDF 进行深度分析 (可选)", type=['pdf'])
-    if uploaded_file:
-         if st.button("🚀 开始分析上传文件", use_container_width=True):
-             st.info("🔄 正在解析上传的 PDF 文件...")
-             # 这里后续可以接入 pdf_extractor 处理解析内容
-             
-    user_input = st.chat_input("请输入您的问题或指令（如：帮我找2024年减持新规）")
-
-# 关闭集中的 ChatGPT 风格包装
-st.markdown('</div>', unsafe_allow_html=True)
+# --- 用户输入区 ---
+user_input = st.chat_input("请输入您的问题或指令（如：帮我找2024年减持新规）")
 
 if user_input:
     # 添加用户消息
@@ -396,7 +337,6 @@ if user_input:
             status.update(label="✅ 检索与排序完成！", state="complete", expanded=False)
         
         st.session_state.search_results = results
-        st.session_state.active_stage = "SEARCH_RESULTS"
         if results:
             msg = f"✅ 已为您精选 {len(results)} 条政策，并按投研权威度排序。"
         else:
@@ -440,7 +380,6 @@ if user_input:
                 status.update(label="✅ 搜索更新完成！", state="complete", expanded=False)
                 
             st.session_state.search_results = results
-            st.session_state.active_stage = "SEARCH_RESULTS"
             st.session_state.messages.append({
                 "role": "assistant",
                 "content": f"✅ 已根据您的新需求找到 {len(results)} 条相关政策。"
@@ -466,7 +405,6 @@ if user_input:
         # 组合分析
         if len(st.session_state.policy_cache) >= 2:
             st.session_state.analysis_direction = parsed.analysis_direction
-            st.session_state.active_stage = "ANALYSIS"
             st.session_state.trigger_compare = True
             st.rerun()
         else:
@@ -481,7 +419,6 @@ if user_input:
             idx = parsed.select_indices[0]
             if 1 <= idx <= len(st.session_state.search_results):
                 st.session_state.selected_for_analysis = st.session_state.search_results[idx - 1]
-                st.session_state.active_stage = "ANALYSIS"
                 st.session_state.trigger_single_analysis = True
                 st.rerun()
     
