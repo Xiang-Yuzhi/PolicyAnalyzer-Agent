@@ -1,19 +1,30 @@
 """
-Ranking V2: 混合排序算法
+Ranking V2.9: 混合排序与身份验证算法
 
-实现两阶段检索中的精排层：
-1. 权威度评分 (Authority Score)
-2. BM25 关键词相关性
-3. 语义相似度 (Embedding Cosine Similarity)
-4. 时效性评分 (Recency Score)
-
-最终分数 = 加权组合
+实现三阶段检索过滤：
+1. 关键词与权威度初排
+2. URL 路径与黑名单过滤 (针对交易所披露)
+3. LLM 智能身份验证 (区分政策原件 vs. 招股书/新闻)
 """
 
 import re
+import json
+import os
 from typing import List, Dict, Any, Optional
 from datetime import datetime
 from dataclasses import dataclass
+
+from langchain_openai import ChatOpenAI
+from langchain_core.prompts import ChatPromptTemplate
+from langchain_core.output_parsers import StrOutputParser
+
+# 确保能导入同级模块
+try:
+    from config import Config
+except ImportError:
+    import sys
+    sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    from config import Config
 
 # BM25 算法
 try:
@@ -52,12 +63,13 @@ class HybridRanker:
         8: ["门户网站", "新浪", "网易", "搜狐", "百度"]
     }
     
-    # 官方域名白名单
-    GOV_DOMAINS = [
-        ".gov.cn", ".org.cn", "csrc.gov.cn", "sse.com.cn", 
-        "szse.cn", "pbc.gov.cn", "nafmii.org.cn", "amac.org.cn",
         "circ.gov.cn", "mof.gov.cn", "ndrc.gov.cn"
     ]
+    
+    # 路径规则：政策类 (加分项)
+    URL_LAW_PATTERNS = ["/law/", "/rule/", "/self_reg/", "/regulatory/", "/zcfg/", "/standard/"]
+    # 路径规则：披露类 (扣分项)
+    URL_DISCLOSURE_PATTERNS = ["/disclosure/", "/listing/", "/announcement/", "/report/", "/prospectus/", "/static/"]
     
     # 新闻媒体域名黑名单 (降权处理)
     NEWS_DOMAINS = [
@@ -88,6 +100,14 @@ class HybridRanker:
             "semantic": 0.20,
             "recency": 0.10
         }
+        
+        # 初始化轻量级验证模型
+        self.llm = ChatOpenAI(
+            model_name="qwen-turbo",  # 使用轻量快慢分层
+            openai_api_key=Config.DASH_SCOPE_API_KEY,
+            openai_api_base="https://dashscope.aliyuncs.com/compatible-mode/v1",
+            temperature=0
+        )
     
     def rank(self, policies: List[Dict], query: str, 
              filter_official_only: bool = False) -> List[Dict]:
@@ -149,10 +169,19 @@ class HybridRanker:
             
         candidates.sort(key=lambda x: x.final_score, reverse=True)
         
-        # 5. 返回结果 (过滤掉权威度极低的新闻，但保障至少有5条列表)
+        # 5. 第三阶段：LLM 智能身份验证 (对 Top 8 进行召回清洗)
+        self._llm_verify_policy(candidates[:8])
+        # 重新排序 (LLM 验证后的可能会被彻底剔除)
+        candidates.sort(key=lambda x: x.final_score, reverse=True)
+        
+        # 6. 返回结果 (过滤掉权威度极低或 LLM 判定为非政策的文件)
         result = []
         for sp in candidates:
-            # 如果结果已经超过5条，则按之前逻辑进行权威度过滤
+            # 彻底剔除判定为 0 的噪音
+            if sp.authority_score <= 0.0 or sp.final_score <= 0.05:
+                continue
+                
+            # 如果结果已经超过5条，则按常规逻辑进行权威度过滤
             if len(result) >= 5 and sp.authority_score < 0.25:
                 continue
                 
@@ -223,23 +252,35 @@ class HybridRanker:
                     continue
                 return 0.0  # 彻底降权
         
-        # 2. 检查各层级权威度
+        # 3. 检查是否为官方域名并应用路径逻辑
+        base_score = 0.0
+        if ".gov.cn" in link:
+            base_score = 0.9
+        elif ".org.cn" in link:
+            base_score = 0.85
+        elif any(d in link for d in ["sse.com.cn", "szse.cn", "bse.cn"]):
+            base_score = 0.7  # 交易所给一个中高保底分
+            
+        if base_score > 0:
+            # 应用 URL 路径微调
+            # 如果包含政策特征路径，加分
+            if any(p in link.lower() for p in self.URL_LAW_PATTERNS):
+                base_score = min(1.0, base_score + 0.1)
+            # 如果包含披露特征路径，大幅减分
+            if any(p in link.lower() for p in self.URL_DISCLOSURE_PATTERNS):
+                base_score = 0.1  # 交易所的披露文件通常不是我们要的政策
+            return base_score
+            
+        # 4. 检查层级权威度 (关键词匹配)
         for level, keywords in self.AUTHORITY_LEVELS.items():
             for kw in keywords:
                 if kw.lower() in combined:
-                    # Level 1 得分最高 (1.0)，Level 8 得分最低 (0.125)
                     return 1.0 - (level - 1) * 0.125
         
-        # 3. 检查是否为官方域名
-        if ".gov.cn" in link:
-            return 0.9
-        if ".org.cn" in link: # 中基协等
-            return 0.85
-        
-        # 4. 检查是否为新闻媒体 (降权处理)
+        # 5. 检查是否为新闻媒体 (降权处理)
         for news_domain in self.NEWS_DOMAINS:
             if news_domain in link.lower():
-                return 0.1  # 新闻媒体给低分但非零分
+                return 0.1
                 
         return 0.3  # 默认分数
     
@@ -349,6 +390,58 @@ class HybridRanker:
                 tokens.append(word.lower())
         
         return tokens
+        
+    def _llm_verify_policy(self, candidates: List[ScoredPolicy]):
+        """使用 LLM 对候选结果进行身份判定"""
+        if not candidates:
+            return
+            
+        verify_prompt = """你是一名资深的投研合规合规审计员。
+分析下述搜索结果产生的标题和摘要，判定其是否为真正的【官方政策/监管规章原文】。
+
+【判定标准】
+- 类别 [A] (政策原文): 法律、办法、指引、实施细则、规则、监管通知。哪怕是“公告”，只要发布的是规章制度也算。
+- 类别 [B] (公司披露): 招股书、招募说明书、年度报告、业绩公告、上市公告、基金产品分红注销公告。
+- 类别 [C] (新闻/杂质): 财经新闻、考证培训、系统登录、评论文章。
+
+【待验证列表】
+{data_list}
+
+【输出要求】
+严格输出 JSON 格式的列表，只包含类别字母。例如: ["A", "B", "A", "C"]
+"""
+        data_list = ""
+        for i, sp in enumerate(candidates):
+            data_list += f"{i+1}. 标题: {sp.policy.get('title')}\n   摘要: {sp.policy.get('snippet')[:100]}\n\n"
+            
+        prompt = ChatPromptTemplate.from_messages([
+            ("user", verify_prompt)
+        ])
+        
+        chain = prompt | self.llm | StrOutputParser()
+        
+        try:
+            # 批量验证，减少调用次数
+            response = chain.invoke({"data_list": data_list})
+            # 提取 JSON 部分
+            match = re.search(r'\[.*\]', response, re.S)
+            if match:
+                labels = json.loads(match.group())
+                for i, label in enumerate(labels):
+                    if i < len(candidates):
+                        if label == "B":
+                            # 对公司披露类彻底降权
+                            candidates[i].authority_score = 0.0
+                            candidates[i].final_score = 0.0
+                        elif label == "C":
+                            # 对新闻资讯等降权
+                            candidates[i].final_score *= 0.3
+                        elif label == "A":
+                            # 对纯正政策原文加成
+                            candidates[i].final_score = min(1.0, candidates[i].final_score * 1.2)
+        except Exception as e:
+            print(f"⚠️ LLM 身份验证失败: {e}")
+            pass
 
 
 # 测试代码
