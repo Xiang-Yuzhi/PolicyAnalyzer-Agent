@@ -14,15 +14,17 @@ import sys
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from config import Config
 from .rag_engine import rag_engine
+from .pdf_extractor import pdf_extractor
 
 class PolicyAnalyzer:
     """
-    核心分析引擎 (RAG 增强版)：
+    核心分析引擎 (RAG 增强版 + PDF 支持)：
     1. 抓取 URL 内容
-    2. 使用 RAG 引擎进行语义切片与索引
-    3. 检索关键词原文依据
-    4. 调用 LLM 进行深度投研分析
-    5. 输出结构化 JSON
+    2. 检测并提取嵌入的 PDF 文件
+    3. 使用 RAG 引擎进行语义切片与索引
+    4. 检索关键词原文依据
+    5. 调用 LLM 进行深度投研分析
+    6. 输出结构化 JSON (含 PDF 下载链接)
     """
 
     def __init__(self):
@@ -51,15 +53,29 @@ class PolicyAnalyzer:
 
     def analyze(self, policy_data: Dict[str, Any], stage_callback=None) -> Dict[str, Any]:
         """
-        核心分析逻辑 (支持 RAG 和 阶段回调)
+        核心分析逻辑 (支持 RAG、PDF解析 和 阶段回调)
         """
         url = policy_data.get('link')
+        pdf_download_url = None
         
-        # Step 1: 抓取
-        if stage_callback: stage_callback("📖 正在阅读政策全文...", 10)
+        # Step 1: 抓取网页
+        if stage_callback: stage_callback("📖 正在阅读政策网页...", 10)
         raw_text = self.scrape_url(url)
+        
+        # Step 1.5: 尝试提取 PDF (如果网页内容过短或包含 PDF)
+        if stage_callback: stage_callback("📄 正在检测 PDF 附件...", 20)
+        pdf_result = pdf_extractor.extract_and_parse(url)
+        
+        if pdf_result["pdf_content"] and len(pdf_result["pdf_content"]) > len(raw_text):
+            print(f"📄 检测到 PDF 内容更丰富，切换至 PDF 解析模式")
+            raw_text = pdf_result["pdf_content"]
+            pdf_download_url = pdf_result["source_pdf_url"]
+        elif pdf_result["pdf_links"]:
+            # 即使没用 PDF 内容，也记录下载链接
+            pdf_download_url = pdf_result["pdf_links"][0]["url"]
+        
         if not raw_text:
-            return {"error": "无法获取网页内容"}
+            return {"error": "无法获取网页或PDF内容"}
 
         # Step 2: RAG 索引
         if stage_callback: stage_callback("🧠 正在构建语义索引 (RAG)...", 30)
@@ -138,7 +154,13 @@ class PolicyAnalyzer:
             })
             
             if stage_callback: stage_callback("📝 正在整理输出最终报告...", 90)
-            return json.loads(response_str)
+            result = json.loads(response_str)
+            
+            # 注入 PDF 下载链接
+            if pdf_download_url:
+                result["pdf_download_url"] = pdf_download_url
+                
+            return result
             
         except Exception as e:
             print(f"❌ LLM 分析失败: {e}")

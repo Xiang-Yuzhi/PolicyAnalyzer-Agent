@@ -281,8 +281,14 @@ if st.session_state.analysis_result:
                 label="📥 下载word报告",
                 data=file,
                 file_name=fn,
-                mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                use_container_width=True
             )
+        
+        # 新增：原始 PDF 下载链接
+        pdf_url = res.get('pdf_download_url')
+        if pdf_url:
+            st.link_button("📄 查看原始PDF", pdf_url, use_container_width=True)
     
     if res.get('policies_analyzed'):
         st.subheader(f"📊 组合分析结果 ({len(res['policies_analyzed'])} 份)")
