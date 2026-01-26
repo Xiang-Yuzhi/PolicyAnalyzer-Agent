@@ -174,6 +174,8 @@ if 'trigger_compare' not in st.session_state:
     st.session_state.trigger_compare = False
 if 'trigger_single_analysis' not in st.session_state:
     st.session_state.trigger_single_analysis = False
+if 'active_stage' not in st.session_state:
+    st.session_state.active_stage = "WELCOME"
 
 # --- 侧边栏 (政策购物车) ---
 with st.sidebar:
@@ -200,6 +202,7 @@ with st.sidebar:
                 with c1:
                     if st.button("🔍 分析", key=f"side_ana_{i}", use_container_width=True):
                         st.session_state.selected_for_analysis = p
+                        st.session_state.active_stage = "ANALYSIS"
                         st.session_state.trigger_single_analysis = True
                         st.rerun()
                 with c2:
@@ -211,7 +214,9 @@ with st.sidebar:
         col1, col2 = st.columns(2)
         with col1:
             if st.button("💼 组合分析", key="side_compare", use_container_width=True):
+                st.session_state.active_stage = "ANALYSIS"
                 st.session_state.trigger_compare = True
+                st.rerun()
         with col2:
             if st.button("🧹 清空", key="side_clear", use_container_width=True):
                 st.session_state.policy_cache = []
@@ -219,35 +224,41 @@ with st.sidebar:
     else:
         st.info("购物车空空如也，快去检索并加入吧~")
 
-# --- 主界面 ---
-st.markdown('<h1 style="margin-bottom: 0px;">🏂 政策检索分析助手</h1>', unsafe_allow_html=True)
-st.markdown('<p style="color: #666; font-size: 0.95rem; margin-top: 0px;">基于 LangChain + Qwen 的 Multi-Agents 智能投研助手</p>', unsafe_allow_html=True)
-st.divider()
-
-# --- 对话历史展示 ---
-chat_container = st.container()
-with chat_container:
-    # 只展示最后几条消息，保持界面简洁
-    recent_messages = st.session_state.messages[-4:] if len(st.session_state.messages) > 4 else st.session_state.messages
-    for msg in recent_messages:
-        if msg["role"] == "user":
-            st.markdown(f"""
-            <div class="user-container">
-                <div class="chat-bubble user-bubble">👤 {msg["content"]}</div>
+# --- 主界面渲染控制 ---
+if st.session_state.active_stage == "WELCOME":
+    st.markdown("""
+        <div style="text-align: center; padding: 40px 20px;">
+            <h2 style="color: #004e9d;">您好，我是您的政策检索分析助手</h2>
+            <p style="color: #666; font-size: 1.1rem;">
+                您可以输入关键词或者通过自然语言向我发起查询询问～<br>
+                也可以通过左侧或下方上传PDF文件进行分析。<br>
+                我会尽力帮你找到匹配的政策，并协助展开分析。
+            </p>
+            <div style="margin-top: 30px; background: white; padding: 20px; border-radius: 15px; border: 1px dashed #ccc;">
+                <p style="color: #888; margin-bottom: 10px;">您可以试试从这个开始：</p>
+                <code style="background: #f0f4ff; padding: 5px 15px; border-radius: 5px; color: #004e9d; font-weight: bold; cursor: pointer;">
+                    “帮我寻找公募基金业绩比较基准新规”
+                </code>
             </div>
-            """, unsafe_allow_html=True)
-        else:
-            st.markdown(f"""
-            <div class="agent-container">
-                <div class="chat-bubble agent-bubble">🤖 {msg["content"]}</div>
-            </div>
-            """, unsafe_allow_html=True)
+        </div>
+    """, unsafe_allow_html=True)
 
-# --- 进度感知占位符 (紧贴对话展示) ---
+# --- 对话历史展示 (在非欢迎阶段显示，或根据需要调整) ---
+if st.session_state.active_stage != "WELCOME":
+    chat_container = st.container()
+    with chat_container:
+        recent_messages = st.session_state.messages[-4:] if len(st.session_state.messages) > 4 else st.session_state.messages
+        for msg in recent_messages:
+            if msg["role"] == "user":
+                st.markdown(f'<div class="user-container"><div class="chat-bubble user-bubble">👤 {msg["content"]}</div></div>', unsafe_allow_html=True)
+            else:
+                st.markdown(f'<div class="agent-container"><div class="chat-bubble agent-bubble">🤖 {msg["content"]}</div></div>', unsafe_allow_html=True)
+
+# --- 进度感知占位符 ---
 progress_container = st.container()
 
-# --- 搜索结果展示区 ---
-if st.session_state.search_results:
+# --- 阶段 2: 搜索结果展示 ---
+if st.session_state.active_stage == "SEARCH_RESULTS" and st.session_state.search_results:
     st.markdown('### 📊 精选检索结果', unsafe_allow_html=True)
     
     for idx, r in enumerate(st.session_state.search_results):
@@ -274,12 +285,13 @@ if st.session_state.search_results:
         with c2:
             if st.button("🔍 深度分析", key=f"analyze_{idx}", use_container_width=True):
                 st.session_state.selected_for_analysis = r
+                st.session_state.active_stage = "ANALYSIS"
                 st.session_state.trigger_single_analysis = True
                 st.rerun()
         st.divider()
 
-# --- 分析结果展示 ---
-if st.session_state.analysis_result:
+# --- 阶段 3: 分析结果展示 ---
+if st.session_state.active_stage == "ANALYSIS" and st.session_state.analysis_result:
     res = st.session_state.analysis_result
     
     st.markdown('<h3 style="color: #004e9d;">📝 报告要点汇总</h3>', unsafe_allow_html=True)
@@ -367,6 +379,7 @@ if user_input:
             status.update(label="✅ 检索与排序完成！", state="complete", expanded=False)
         
         st.session_state.search_results = results
+        st.session_state.active_stage = "SEARCH_RESULTS"
         if results:
             msg = f"✅ 已为您精选 {len(results)} 条政策，并按投研权威度排序。"
         else:
@@ -410,6 +423,7 @@ if user_input:
                 status.update(label="✅ 搜索更新完成！", state="complete", expanded=False)
                 
             st.session_state.search_results = results
+            st.session_state.active_stage = "SEARCH_RESULTS"
             st.session_state.messages.append({
                 "role": "assistant",
                 "content": f"✅ 已根据您的新需求找到 {len(results)} 条相关政策。"
@@ -435,6 +449,7 @@ if user_input:
         # 组合分析
         if len(st.session_state.policy_cache) >= 2:
             st.session_state.analysis_direction = parsed.analysis_direction
+            st.session_state.active_stage = "ANALYSIS"
             st.session_state.trigger_compare = True
             st.rerun()
         else:
@@ -449,6 +464,7 @@ if user_input:
             idx = parsed.select_indices[0]
             if 1 <= idx <= len(st.session_state.search_results):
                 st.session_state.selected_for_analysis = st.session_state.search_results[idx - 1]
+                st.session_state.active_stage = "ANALYSIS"
                 st.session_state.trigger_single_analysis = True
                 st.rerun()
     
