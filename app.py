@@ -9,6 +9,7 @@ from core.document_gen import ReportGenerator
 from core.router_agent import RouterAgent, Intent, ParsedIntent
 from core.compare_agent import CompareAgent
 from core.ranking_v2 import HybridRanker
+from core.summary_agent import SummaryAgent
 
 # 页面配置
 st.set_page_config(
@@ -165,6 +166,8 @@ if 'trigger_compare' not in st.session_state:
     st.session_state.trigger_compare = False
 if 'trigger_single_analysis' not in st.session_state:
     st.session_state.trigger_single_analysis = False
+if "current_snippet" not in st.session_state:
+    st.session_state.current_snippet = None
 if 'search_cache' not in st.session_state:
     st.session_state.search_cache = {}  # 搜索结果缓存：{query: results}
 if 'current_raw_query' not in st.session_state:
@@ -244,6 +247,11 @@ if st.session_state.search_results:
                 st.rerun()
     st.divider()
     
+    # --- Phase 16: Knowledge Snippet Display ---
+    if st.session_state.current_snippet:
+        st.info(f"💡 **政策速递 (AI Featured Snippet)**  \n{st.session_state.current_snippet}")
+        st.write("")
+    
     for idx, r in enumerate(st.session_state.search_results):
         is_cached = any(p['link'] == r['link'] for p in st.session_state.policy_cache)
         
@@ -261,6 +269,10 @@ if st.session_state.search_results:
                     meta_parts.append(f"📅 {r['date']}")
                 if r.get('source'):
                     meta_parts.append(f"🏛️ {r['source']}")
+                if r.get('status'):
+                    meta_parts.append(f"🟢 **{r['status']}**")
+                if r.get('tag'):
+                    meta_parts.append(f"🏷️ `{r['tag']}`")
                 if is_cached:
                     meta_parts.append('<span class="cached-tag">已暂存</span>')
                 meta_parts.append(f'<a href="{r["link"]}" target="_blank" class="source-link">🔗 查看原文</a>')
@@ -372,44 +384,43 @@ if user_input:
             msg = f"♻️ 已从缓存为您恢复 “{raw_query}” 的精选结果。"
         else:
             # 进度展示 (在输入框上方)
-            with progress_container.status("🔍 正在开启投研智能检索...", expanded=True) as status:
-                st.write("📡 提取意图关键词...")
+            with progress_container.status("🔍 正在开启 V4.0 智能投研搜索...", expanded=True) as status:
+                st.write("📡 提取意图与分词...")
                 # 刷新时：稍微调高温度以增加多样性
                 temp = 0.2 if is_force_refresh else 0.0
                 search_params = st.session_state.router.extract_keywords(parsed.search_query, temperature=temp) 
                 
-                st.write(f"🌐 正在检索: {search_params['refined_query']}...")
+                st.write(f"🌐 正在执行 Google 双向量混合召回 (Raw + AI-Refined)...")
                 results = PolicySearcher.search(
                     search_params['refined_query'],
                     source_preference=search_params.get('source_preference', 'all'),
-                    time_range=search_params.get('time_range')
+                    time_range=search_params.get('time_range'),
+                    raw_query=parsed.search_query # 传入原始指令进行双重检索
                 )
                 
-                st.write("⚖️ 正在执行权威度与相关性混合排序 (Ranking V2)...")
+                st.write("⚖️ 正在执行 AI 深度大图重排与政策原件精判...")
                 ranker = HybridRanker()
                 results = ranker.rank(results, parsed.search_query, temperature=temp)
                 
+                # --- Phase 16: Knowledge Snippet ---
+                if results and len(results) >= 2:
+                    st.write("📖 正在生成政策速递 (AI Featured Snippet)...")
+                    summary_agent = SummaryAgent()
+                    snippet = summary_agent.generate_snippet(parsed.search_query, results)
+                    st.session_state.current_snippet = snippet
+                else:
+                    st.session_state.current_snippet = None
                 
-                # --- 自动补齐重试逻辑 ---
-                if not results and search_params.get('source_preference') == 'gov':
-                    st.write("⚠️ 官方渠道未找到，正在尝试扩大搜索范围...")
-                    results = PolicySearcher.search(
-                        search_params['refined_query'],
-                        source_preference='all',
-                        time_range=search_params.get('time_range')
-                    )
-                    results = ranker.rank(results, parsed.search_query, temperature=temp)
-                
-                # --- 终极兜底 ---
+                # --- 自动补齐逻辑 (如果召回依然为空) ---
                 if not results:
-                    st.write("📡 正在尝试使用原始指令进行补全搜索...")
+                    st.write("⚠️ 未找到匹配政策，正在尝试放宽搜索限制...")
                     results = PolicySearcher.search(
                         parsed.search_query,
                         source_preference='all'
                     )
                     results = ranker.rank(results, parsed.search_query, temperature=temp)
                 
-                status.update(label="✅ 检索与排序完成！", state="complete", expanded=False)
+                status.update(label="✅ 智能检索与精判完成！", state="complete", expanded=False)
             
             st.session_state.search_results = results
             st.session_state.is_result_from_cache = False
