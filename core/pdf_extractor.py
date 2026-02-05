@@ -51,7 +51,7 @@ class PDFExtractor:
     @staticmethod
     def extract_pdf_links(page_url: str, html_content: Optional[str] = None) -> List[Dict[str, str]]:
         """
-        从网页中提取 PDF 下载链接
+        从网页中提取 PDF 下载链接（优化证监会等政府网站）
         
         Returns:
             [{"url": "完整PDF链接", "title": "链接文本或文件名"}]
@@ -64,37 +64,47 @@ class PDFExtractor:
         try:
             if not html_content:
                 response = requests.get(page_url, headers=PDFExtractor.HEADERS, timeout=15, verify=False)
+                response.encoding = response.apparent_encoding  # 修复编码问题
                 html_content = response.text
             
             soup = BeautifulSoup(html_content, 'html.parser')
             
-            # 方式1: 直接的 <a href="xxx.pdf"> 链接
-            for a in soup.find_all('a', href=True):
-                href = a.get('href', '')
-                if re.search(r'\.pdf', href, re.I):
-                    full_url = urljoin(page_url, href)
-                    title = a.get_text(strip=True) or PDFExtractor._extract_filename(full_url)
-                    pdf_links.append({"url": full_url, "title": title})
-                    print(f"  📎 发现 PDF 链接: {title[:30]}... -> {full_url[:80]}")
+            # 解析基础 URL（用于正确拼接相对路径）
+            parsed_base = urlparse(page_url)
+            base_url = f"{parsed_base.scheme}://{parsed_base.netloc}"
+            # 获取当前页面所在目录（用于处理相对路径）
+            page_dir = page_url.rsplit('/', 1)[0] if '/' in parsed_base.path else page_url
             
-            # 方式2: 嵌入的 <embed> 或 <iframe> 标签
-            for tag in soup.find_all(['embed', 'iframe', 'object']):
-                src = tag.get('src') or tag.get('data', '')
-                if src and '.pdf' in src.lower():
-                    full_url = urljoin(page_url, src)
-                    pdf_links.append({"url": full_url, "title": "嵌入式PDF文档"})
+            print(f"🔍 正在分析页面: {page_url}")
+            print(f"   基础URL: {base_url}, 页面目录: {page_dir}")
             
-            # 方式3: JavaScript 动态加载的链接 (简单模式匹配)
-            scripts = soup.find_all('script')
-            for script in scripts:
-                script_text = script.string or ''
-                pdf_matches = re.findall(r'["\']([^"\']*\.pdf[^"\']*)["\']', script_text, re.I)
-                for match in pdf_matches:
-                    if match.startswith('http'):
-                        pdf_links.append({"url": match, "title": PDFExtractor._extract_filename(match)})
-                    elif match.startswith('/'):
-                        full_url = urljoin(page_url, match)
-                        pdf_links.append({"url": full_url, "title": PDFExtractor._extract_filename(full_url)})
+            # 优先方式: 从 #files 或 class=files 容器中提取 (证监会网站特有结构)
+            files_containers = soup.find_all(['div', 'section'], id='files') or \
+                               soup.find_all(['div', 'section'], class_='files') or \
+                               soup.find_all(['div'], id=re.compile(r'file', re.I))
+            
+            if files_containers:
+                print(f"   ✅ 找到 {len(files_containers)} 个文件容器")
+                for container in files_containers:
+                    for a in container.find_all('a', href=True):
+                        href = a.get('href', '')
+                        if re.search(r'\.pdf', href, re.I):
+                            # 智能拼接完整 URL
+                            full_url = PDFExtractor._build_full_url(href, page_url, base_url, page_dir)
+                            title = a.get_text(strip=True) or PDFExtractor._extract_filename(full_url)
+                            pdf_links.append({"url": full_url, "title": title, "source": "files_container"})
+                            print(f"   📎 [容器] {title[:40]} -> {full_url}")
+            
+            # 备用方式: 全局搜索 <a href="xxx.pdf">
+            if not pdf_links:
+                print(f"   ⚠️ 未在 files 容器中找到 PDF，尝试全局搜索")
+                for a in soup.find_all('a', href=True):
+                    href = a.get('href', '')
+                    if re.search(r'\.pdf', href, re.I):
+                        full_url = PDFExtractor._build_full_url(href, page_url, base_url, page_dir)
+                        title = a.get_text(strip=True) or PDFExtractor._extract_filename(full_url)
+                        pdf_links.append({"url": full_url, "title": title, "source": "global_search"})
+                        print(f"   📎 [全局] {title[:40]} -> {full_url}")
             
             # 去重
             seen = set()
@@ -104,11 +114,29 @@ class PDFExtractor:
                     seen.add(link['url'])
                     unique_links.append(link)
             
+            print(f"   📊 共找到 {len(unique_links)} 个唯一 PDF 链接")
             return unique_links
             
         except Exception as e:
             print(f"❌ 提取 PDF 链接失败: {e}")
             return []
+    
+    @staticmethod
+    def _build_full_url(href: str, page_url: str, base_url: str, page_dir: str) -> str:
+        """智能拼接完整 URL"""
+        href = href.strip()
+        
+        # 已经是完整 URL
+        if href.startswith('http://') or href.startswith('https://'):
+            return href
+        
+        # 绝对路径 (以 / 开头)
+        if href.startswith('/'):
+            return base_url + href
+        
+        # 相对路径 (不以 / 开头)
+        # 使用页面所在目录拼接
+        return page_dir + '/' + href
     
     @staticmethod
     def download_and_parse_pdf(pdf_url: str, max_pages: int = 10) -> Tuple[str, Optional[str]]:
