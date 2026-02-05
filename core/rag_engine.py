@@ -28,10 +28,10 @@ class RAGEngine:
             model="text-embedding-v3"
         )
         
-        # 定义切片器
+        # 定义切片器 (增大切片长度保留更完整上下文)
         self.text_splitter = RecursiveCharacterTextSplitter(
-            chunk_size=600,
-            chunk_overlap=100,
+            chunk_size=800,  # 增大切片以保留更多上下文
+            chunk_overlap=200,  # 增加重叠防止关键信息被切断
             separators=["\n\n", "\n", "。", "！", "？", " ", ""]
         )
 
@@ -67,13 +67,16 @@ class RAGEngine:
             print(f"❌ 检索失败: {e}")
             return []
 
-    def get_context_for_analysis(self, vector_store, queries: List[str]) -> str:
+    def get_context_for_analysis(self, vector_store, queries: List[str], k: int = 3) -> str:
         """
         为多个分析维度获取综合上下文
+        
+        Args:
+            k: 每个query检索的文档数量，默认3条
         """
         all_chunks = []
         for q in queries:
-            chunks = self.retrieve_relevant_chunks(vector_store, q, k=2)
+            chunks = self.retrieve_relevant_chunks(vector_store, q, k=k)
             all_chunks.extend(chunks)
         
         # 去重并合并

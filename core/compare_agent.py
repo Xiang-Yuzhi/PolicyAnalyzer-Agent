@@ -17,6 +17,7 @@ from typing import List, Dict, Any
 from langchain_openai import ChatOpenAI
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
+from langchain_community.document_loaders import WebBaseLoader
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from config import Config
@@ -32,7 +33,7 @@ class CompareAgent:
             api_key=Config.DASHSCOPE_API_KEY,
             base_url="https://dashscope.aliyuncs.com/compatible-mode/v1",
             model=Config.MODEL_NAME,
-            temperature=0.3, # 组合分析需要更强的逻辑叙述能力
+            temperature=0.15,  # 降低温度以减少幻觉风险
             model_kwargs={
                 "response_format": {"type": "json_object"}
             }
@@ -45,6 +46,8 @@ class CompareAgent:
 1. **深度叙述**：严禁使用点状清单（Bullet Points）。请采用成段的叙述性文字，逻辑严密，语气严谨规范。
 2. **权威性**：必须深入引用各政策原文关键条款作为支撑。
 3. **专业广度**：涵盖监管导向、理论深度、市场冲击、行业变迁及战略应对。
+4. **严禁虚构**：所有数字、日期、比例必须直接来自提供的原文，不可推测或编造。如原文未明确，请注明"原文未明确"或"需进一步确认"。
+5. **原文锚定**：引用的条款必须能在提供的政策节选中找到依据。
 
 【报告结构要求】
 1. 政策共同导向 (约400字): 深度解读政策组合传递出的底层监管逻辑与核心信号。
@@ -82,15 +85,32 @@ class CompareAgent:
         
         if stage_callback: stage_callback("📂 正在提取并交叉比对政策内容...", 20)
         
-        # 构建政策摘要列表
+        # 构建政策摘要列表，并尝试获取全文
         policy_summaries = []
         for i, p in enumerate(policies, 1):
+            # 尝试获取政策全文（如有链接）
+            full_text_excerpt = ""
+            if p.get('link'):
+                try:
+                    if stage_callback: stage_callback(f"📖 正在读取政策{i}原文...", 20 + i * 10)
+                    loader = WebBaseLoader(p['link'])
+                    loader.requests_kwargs = {'verify': False, 'timeout': 10}
+                    docs = loader.load()
+                    raw_content = "\n".join([d.page_content for d in docs])
+                    # 每篇取前3000字作为上下文
+                    full_text_excerpt = raw_content[:3000]
+                except Exception as e:
+                    print(f"⚠️ 获取政策{i}全文失败: {e}")
+            
             summary = f"""
 【政策{i}】
 标题: {p.get('title', '未知')}
 发布机构: {p.get('source', '未知')}
 发布日期: {p.get('date', '未知')}
 内容摘要: {p.get('summary', p.get('snippet', '无摘要'))}
+
+【政策{i}原文节选】(以下为从原网页提取的内容，请基于此分析)
+{full_text_excerpt if full_text_excerpt else '(无法获取原文，请仅基于摘要谨慎分析，明确标注"原文未获取"的限制)'}
 """
             policy_summaries.append(summary)
         
@@ -101,6 +121,11 @@ class CompareAgent:
         user_prompt = f"""请对以下 {len(policies)} 份政策进行综合对比分析，撰写不少于2000字的专业研报：
 {direction_clause}
 {"".join(policy_summaries)}
+
+⚠️ 【幻觉防范 - 务必遵守】：
+- 所有数字、日期、比例必须来自上述"原文节选"，不可编造
+- 如果某政策的原文节选显示"无法获取"，请明确注明分析受限
+- 引用条款时请标注来源政策编号，如"根据政策1第X条..."
 
 请注意：成段撰写，严禁点状清单，引用原文，字数务必充足。
 """

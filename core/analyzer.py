@@ -32,7 +32,7 @@ class PolicyAnalyzer:
             api_key=Config.DASHSCOPE_API_KEY,
             base_url="https://dashscope.aliyuncs.com/compatible-mode/v1",
             model=Config.MODEL_NAME,
-            temperature=0.2, # 为报告撰写保留一点专业叙述的流畅度
+            temperature=0.1,  # 降低温度以减少幻觉风险
             model_kwargs={
                 "response_format": {"type": "json_object"}
             }
@@ -87,16 +87,22 @@ class PolicyAnalyzer:
             "核心监管要求和限制条件",
             "合规义务与法律责任",
             "生效日期与过渡期安排",
-            "对指数基金及管理人的相关规定"
+            "对指数基金及管理人的相关规定",
+            "具体数量限制和比例要求",  # 新增：锁定数字细节
+            "违规处罚和法律责任条款"   # 新增：锁定关键条款
         ]
-        original_citations = rag_engine.get_context_for_analysis(vector_store, search_queries)
+        original_citations = rag_engine.get_context_for_analysis(vector_store, search_queries, k=4)  # 增加检索数量
 
         # Step 4: LLM 分析
         if stage_callback: stage_callback("📊 正在调用 Qwen-Max 进行投研深度分析...", 70)
         
-        system_prompt = """你是【易方达基金首席政策分析师】，请基于政策原文撰写专业投研报告。
+        system_prompt = """你是【易方达基金首席政策分析师】，请严格基于政策原文撰写专业投研报告。
 
-【核心要求】专业凝练、引用原文、区分短期/长期影响
+【核心要求】
+1. **严禁虚构**：所有数字、日期、百分比、条款编号必须直接来自原文，不可推测或编造
+2. **原文锚定**：每个核心观点必须标注原文出处，如"根据第X条..."或直接引用原文
+3. **不确定性标注**：如原文未明确某信息，需明确注明"原文未明确说明"
+4. **区分短期/长期影响**
 
 【报告结构 (共约1800字)】
 1. **摘要** (250字): 政策背景、核心变化、主要影响
@@ -129,8 +135,15 @@ class PolicyAnalyzer:
 【政策全文参考】
 {content}
 
-⚠️ 注意事项：
-- chat_bullets 每条需简洁有力，约30-50字，需包含原文依据
+⚠️ 【幻觉防范机制 - 务必严格遵守】：
+- 如果原文中没有具体数字，严禁编造任何数字（如百分比、金额、天数、比例）
+- 如果无法确认某条款的具体内容，请明确写出"原文未明确规定"或"需进一步确认"
+- 每个"chat_bullets"必须附带一个可验证的原文片段作为依据
+- 禁止使用"据悉"、"预计"、"可能会"等推测性表述，除非原文如此表述
+- "原文摘录"部分必须是政策文件中的真实原句，不可改写或总结
+
+📝 输出要求：
+- chat_bullets 每条需简洁有力，约30-50字，必须包含原文依据
 - 市场影响需区分短期(3-6月)和长期(1-3年)
 - 易方达建议需具体可操作，涵盖产品、业务、资源三方面
 - 严格输出JSON格式，勿添加markdown标记
