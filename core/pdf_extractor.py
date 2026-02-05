@@ -75,6 +75,7 @@ class PDFExtractor:
                     full_url = urljoin(page_url, href)
                     title = a.get_text(strip=True) or PDFExtractor._extract_filename(full_url)
                     pdf_links.append({"url": full_url, "title": title})
+                    print(f"  📎 发现 PDF 链接: {title[:30]}... -> {full_url[:80]}")
             
             # 方式2: 嵌入的 <embed> 或 <iframe> 标签
             for tag in soup.find_all(['embed', 'iframe', 'object']):
@@ -121,10 +122,11 @@ class PDFExtractor:
             return "", "PyMuPDF 未安装"
         
         try:
-            print(f"📥 正在下载 PDF: {pdf_url[:80]}...")
+            print(f"📥 正在下载 PDF: {pdf_url}")
             # 增加超时保护
             response = requests.get(pdf_url, headers=PDFExtractor.HEADERS, timeout=20, verify=False)
             response.raise_for_status()
+            print(f"  ✅ 下载成功，响应状态码: {response.status_code}, 内容类型: {response.headers.get('Content-Type', 'unknown')}")
             
             # 检查文件大小 (如超过 15MB 则跳过下载，避免内存崩溃)
             file_size = len(response.content)
@@ -148,7 +150,7 @@ class PDFExtractor:
             
             full_text = "\n\n".join(text_parts)
             # 限制总字符，避免 token 爆炸
-            full_text = full_text[:50000]
+            full_text = full_text[:30000]
             
             print(f"✅ PDF 解析完成: {len(full_text)} 字符, {page_count} 页 (总页数: {len(doc)})")
             

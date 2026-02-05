@@ -357,7 +357,7 @@ if st.session_state.analysis_result:
             else:
                 st.warning("❓ 内容来源未知")
             
-            tab1, tab2 = st.tabs(["📄 原始采集预览", "🔍 RAG 检索上下文"])
+            tab1, tab2, tab3 = st.tabs(["📄 原始采集预览", "🔍 RAG 检索上下文", "🔗 PDF 链接诊断"])
             
             with tab1:
                 st.markdown("**抓取内容预览 (前 2000 字)：**")
@@ -366,6 +366,20 @@ if st.session_state.analysis_result:
             with tab2:
                 st.markdown("**RAG 引擎提供的核心原文池：**")
                 st.code(res.get('debug_citations', '无数据'), language="text")
+            
+            with tab3:
+                pdf_links = res.get('debug_pdf_links', [])
+                pdf_error = res.get('debug_pdf_error', None)
+                
+                if pdf_links:
+                    st.markdown(f"**检测到 {len(pdf_links)} 个 PDF 链接：**")
+                    for i, link in enumerate(pdf_links, 1):
+                        st.markdown(f"{i}. [{link.get('title', '未命名')}]({link.get('url', '#')})")
+                else:
+                    st.warning("❌ 未在页面中检测到任何 PDF 链接")
+                
+                if pdf_error:
+                    st.error(f"**PDF 提取错误：** {pdf_error}")
 
 # --- 底部固定区 (进度条 + 输入框) ---
 # 将进度条放置在最下方，紧邻输入框

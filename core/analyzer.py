@@ -76,10 +76,15 @@ class PolicyAnalyzer:
             if stage_callback: stage_callback("📖 未找到 PDF，正在读取网页内容...", 20)
             raw_text = self.scrape_url(url)
             content_source = "webpage"
-            # 仍记录 PDF 链接（如果存在）
-            if pdf_result["pdf_links"]:
-                pdf_download_url = pdf_result["pdf_links"][0]["url"]
-                print(f"⚠️ 发现 PDF 链接但解析失败，使用网页内容: {pdf_download_url[:60]}...")
+            # 记录 PDF 提取失败的诊断信息
+            pdf_extraction_error = pdf_result.get("error", "未知原因")
+            pdf_links_found = pdf_result.get("pdf_links", [])
+            if pdf_links_found:
+                pdf_download_url = pdf_links_found[0]["url"]
+                print(f"⚠️ 发现 {len(pdf_links_found)} 个 PDF 链接但解析失败: {pdf_extraction_error}")
+                print(f"   首个链接: {pdf_download_url[:80]}...")
+            else:
+                print(f"⚠️ 未在页面中发现任何 PDF 链接")
         
         if not raw_text:
             return {"error": "无法获取网页或PDF内容"}
@@ -184,6 +189,8 @@ class PolicyAnalyzer:
             result["debug_content_source"] = content_source  # "pdf" 或 "webpage"
             result["debug_raw_text"] = raw_text[:2000] + ("..." if len(raw_text) > 2000 else "")
             result["debug_citations"] = original_citations
+            result["debug_pdf_links"] = pdf_result.get("pdf_links", [])
+            result["debug_pdf_error"] = pdf_result.get("error", None)
                 
             return result
             
