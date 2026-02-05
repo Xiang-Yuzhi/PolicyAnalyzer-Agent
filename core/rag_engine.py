@@ -40,17 +40,24 @@ class RAGEngine:
         对单份政策文本建立向量索引
         """
         if not text:
+            print("⚠️ RAG: 输入文本为空，跳过索引创建")
             return None
         
         # 1. 文本切片
         chunks = self.text_splitter.split_text(text)
+        print(f"📚 RAG: 文本切片完成，共 {len(chunks)} 个片段 (原文 {len(text)} 字)")
+        
+        if not chunks:
+            print("⚠️ RAG: 切片结果为空")
+            return None
         
         # 2. 建立向量库
         try:
             vector_store = FAISS.from_texts(chunks, self.embeddings)
+            print(f"✅ RAG: 向量索引创建成功")
             return vector_store
         except Exception as e:
-            print(f"❌ 建立向量索引失败: {e}")
+            print(f"❌ RAG: 建立向量索引失败: {e}")
             return None
 
     def retrieve_relevant_chunks(self, vector_store, query: str, k: int = 5) -> List[str]:
@@ -74,14 +81,21 @@ class RAGEngine:
         Args:
             k: 每个query检索的文档数量，默认3条
         """
+        if not vector_store:
+            print("⚠️ RAG: vector_store 为空，无法检索")
+            return ""
+        
         all_chunks = []
         for q in queries:
             chunks = self.retrieve_relevant_chunks(vector_store, q, k=k)
+            print(f"  🔎 Query '{q[:20]}...' -> 检索到 {len(chunks)} 个片段")
             all_chunks.extend(chunks)
         
         # 去重并合并
         unique_chunks = list(set(all_chunks))
-        return "\n---\n".join(unique_chunks)
+        result = "\n---\n".join(unique_chunks)
+        print(f"📊 RAG 检索汇总: 总 {len(all_chunks)} 个片段, 去重后 {len(unique_chunks)} 个, 共 {len(result)} 字符")
+        return result
 
 # 单例模式供外部调用
 rag_engine = RAGEngine()
