@@ -139,34 +139,67 @@ class PDFExtractor:
         return page_dir + '/' + href
     
     @staticmethod
-    def download_and_parse_pdf(pdf_url: str, max_pages: int = 10) -> Tuple[str, Optional[str]]:
+    def download_and_parse_pdf(pdf_url: str, max_pages: int = 15) -> Tuple[str, Optional[str]]:
         """
-        下载 PDF 并提取全文内容 (限制前10页以平衡性能与资源)
+        下载 PDF 并提取全文内容
         
         Returns:
-            (提取 of 的文本内容, 错误信息或None)
+            (提取的文本内容, 错误信息或None)
         """
         if not HAS_PYMUPDF:
             return "", "PyMuPDF 未安装"
         
         try:
             print(f"📥 正在下载 PDF: {pdf_url}")
-            # 增加超时保护
-            response = requests.get(pdf_url, headers=PDFExtractor.HEADERS, timeout=20, verify=False)
-            response.raise_for_status()
-            print(f"  ✅ 下载成功，响应状态码: {response.status_code}, 内容类型: {response.headers.get('Content-Type', 'unknown')}")
             
-            # 检查文件大小 (如超过 15MB 则跳过下载，避免内存崩溃)
+            # 增加重定向跟踪，使用 Session 保持 cookies
+            session = requests.Session()
+            response = session.get(
+                pdf_url, 
+                headers=PDFExtractor.HEADERS, 
+                timeout=30, 
+                verify=False,
+                allow_redirects=True
+            )
+            response.raise_for_status()
+            
+            content_type = response.headers.get('Content-Type', 'unknown')
+            final_url = response.url  # 跟踪重定向后的最终 URL
             file_size = len(response.content)
+            
+            print(f"  📊 响应信息: 状态码={response.status_code}, 内容类型={content_type}, 大小={file_size/1024:.1f}KB")
+            print(f"  🔗 最终URL: {final_url}")
+            
+            # 检查是否被重定向到非 PDF 页面
+            if final_url != pdf_url:
+                print(f"  ⚠️ 发生重定向: {pdf_url} -> {final_url}")
+            
+            # 检查文件大小
             if file_size > 15 * 1024 * 1024:
-                return "", f"文件过大 ({file_size / 1024 / 1024:.1f}MB)，跳过深度下载以节省资源"
+                return "", f"文件过大 ({file_size / 1024 / 1024:.1f}MB)，跳过下载"
+            
+            if file_size < 100:
+                return "", f"文件过小 ({file_size} 字节)，可能不是有效 PDF"
+            
+            # 核心修复：检查内容是否为有效 PDF (魔数验证)
+            pdf_content = response.content
+            if not pdf_content.startswith(b'%PDF'):
+                # 检查是否是 HTML 错误页
+                if b'<html' in pdf_content[:500].lower() or b'<!doctype' in pdf_content[:500].lower():
+                    error_preview = pdf_content[:200].decode('utf-8', errors='ignore')
+                    print(f"  ❌ 服务器返回 HTML 而非 PDF: {error_preview[:100]}...")
+                    return "", "服务器返回 HTML 页面而非 PDF 文件（可能需要登录或链接已失效）"
+                else:
+                    print(f"  ❌ 内容不是有效 PDF，前20字节: {pdf_content[:20]}")
+                    return "", "下载的内容不是有效的 PDF 文件"
+            
+            print(f"  ✅ PDF 魔数验证通过，开始解析...")
             
             # 使用 PyMuPDF 解析
-            doc = fitz.open(stream=response.content, filetype="pdf")
+            doc = fitz.open(stream=pdf_content, filetype="pdf")
             
             text_parts = []
-            # 限制页数，政策文件核心通常在前15页
-            page_count = min(len(doc), max_pages if max_pages > 10 else 15)
+            page_count = min(len(doc), max_pages)
             
             for page_num in range(page_count):
                 page = doc[page_num]
@@ -174,19 +207,21 @@ class PDFExtractor:
                 if page_text.strip():
                     text_parts.append(f"--- 第 {page_num + 1} 页 ---\n{page_text}")
             
+            total_pages = len(doc)
             doc.close()
             
             full_text = "\n\n".join(text_parts)
-            # 限制总字符，避免 token 爆炸
-            full_text = full_text[:30000]
+            full_text = full_text[:30000]  # 限制总字符
             
-            print(f"✅ PDF 解析完成: {len(full_text)} 字符, {page_count} 页 (总页数: {len(doc)})")
+            print(f"  ✅ PDF 解析成功: {len(full_text)} 字符, 解析 {page_count}/{total_pages} 页")
             
             return full_text, None
             
         except requests.exceptions.RequestException as e:
+            print(f"  ❌ 下载失败: {e}")
             return "", f"下载失败: {e}"
         except Exception as e:
+            print(f"  ❌ 解析失败: {e}")
             return "", f"解析失败: {e}"
     
     @staticmethod
