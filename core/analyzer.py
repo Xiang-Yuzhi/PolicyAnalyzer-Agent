@@ -172,6 +172,10 @@ class PolicyAnalyzer:
             # 注入 PDF 下载链接
             if pdf_download_url:
                 result["pdf_download_url"] = pdf_download_url
+            
+            # 注入原始采集快照 (Debug 用)
+            result["debug_raw_text"] = raw_text[:2000] + ("..." if len(raw_text) > 2000 else "")
+            result["debug_citations"] = original_citations
                 
             return result
             

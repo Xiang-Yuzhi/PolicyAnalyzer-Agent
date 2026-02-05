@@ -135,8 +135,8 @@ class PDFExtractor:
             doc = fitz.open(stream=response.content, filetype="pdf")
             
             text_parts = []
-            # 限制页数，政策文件核心通常在前10页
-            page_count = min(len(doc), max_pages)
+            # 限制页数，政策文件核心通常在前15页
+            page_count = min(len(doc), max_pages if max_pages > 10 else 15)
             
             for page_num in range(page_count):
                 page = doc[page_num]
@@ -148,9 +148,9 @@ class PDFExtractor:
             
             full_text = "\n\n".join(text_parts)
             # 限制总字符，避免 token 爆炸
-            full_text = full_text[:30000]
+            full_text = full_text[:50000]
             
-            print(f"✅ PDF 解析完成: {len(full_text)} 字符, {page_count} 页")
+            print(f"✅ PDF 解析完成: {len(full_text)} 字符, {page_count} 页 (总页数: {len(doc)})")
             
             return full_text, None
             
@@ -182,6 +182,7 @@ class PDFExtractor:
         # 1. 提取所有 PDF 链接
         pdf_links = PDFExtractor.extract_pdf_links(page_url, html_content)
         result["pdf_links"] = pdf_links
+        print(f"🔍 在页面中发现 {len(pdf_links)} 个可能的 PDF 链接")
         
         if not pdf_links:
             result["error"] = "未在网页中发现 PDF 文件"

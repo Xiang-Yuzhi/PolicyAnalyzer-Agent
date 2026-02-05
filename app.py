@@ -345,6 +345,21 @@ if st.session_state.analysis_result:
                 st.write(p)
             st.divider()
 
+    # 新增：内容采集快照 (Debug 用)
+    if res.get('debug_raw_text') or res.get('debug_citations'):
+        with st.expander("🔍 内容采集快照 (Debug)"):
+            st.warning("提示：此部分展示的是系统实际抓取到的原始文本，可用于判断抓取是否正确。")
+            
+            tab1, tab2 = st.tabs(["📄 原始采集预览", "🔍 RAG 检索上下文"])
+            
+            with tab1:
+                st.markdown("**抓取内容预览 (前 2000 字)：**")
+                st.code(res.get('debug_raw_text', '无数据'), language="text")
+                
+            with tab2:
+                st.markdown("**RAG 引擎提供的核心原文池：**")
+                st.code(res.get('debug_citations', '无数据'), language="text")
+
 # --- 底部固定区 (进度条 + 输入框) ---
 # 将进度条放置在最下方，紧邻输入框
 progress_container = st.container()
