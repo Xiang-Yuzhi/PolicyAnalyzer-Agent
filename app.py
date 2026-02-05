@@ -348,7 +348,14 @@ if st.session_state.analysis_result:
     # 新增：内容采集快照 (Debug 用)
     if res.get('debug_raw_text') or res.get('debug_citations'):
         with st.expander("🔍 内容采集快照 (Debug)"):
-            st.warning("提示：此部分展示的是系统实际抓取到的原始文本，可用于判断抓取是否正确。")
+            # 显示内容来源
+            content_source = res.get('debug_content_source', 'unknown')
+            if content_source == 'pdf':
+                st.success("✅ 内容来源：**PDF 政策原文** — 已成功从嵌入的 PDF 文件中提取内容")
+            elif content_source == 'webpage':
+                st.error("⚠️ 内容来源：**网页文本** — 未能提取 PDF，使用的是网页内容（可能不含政策正文）")
+            else:
+                st.warning("❓ 内容来源未知")
             
             tab1, tab2 = st.tabs(["📄 原始采集预览", "🔍 RAG 检索上下文"])
             

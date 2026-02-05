@@ -57,22 +57,29 @@ class PolicyAnalyzer:
         """
         url = policy_data.get('link')
         pdf_download_url = None
+        content_source = "webpage"  # Debug: 记录内容来源
         
-        # Step 1: 抓取网页
-        if stage_callback: stage_callback("📖 正在阅读政策网页...", 10)
-        raw_text = self.scrape_url(url)
-        
-        # Step 1.5: 尝试提取 PDF (如果网页内容过短或包含 PDF)
-        if stage_callback: stage_callback("📄 正在检测 PDF 附件...", 20)
+        # Step 1: 先尝试提取 PDF（政策原文通常在 PDF 中）
+        if stage_callback: stage_callback("📄 正在检测 PDF 政策原文...", 10)
         pdf_result = pdf_extractor.extract_and_parse(url)
         
-        if pdf_result["pdf_content"] and len(pdf_result["pdf_content"]) > len(raw_text):
-            print(f"📄 检测到 PDF 内容更丰富，切换至 PDF 解析模式")
+        raw_text = ""
+        
+        # 优先使用 PDF 内容（只要有实质内容）
+        if pdf_result["pdf_content"] and len(pdf_result["pdf_content"]) > 500:
+            print(f"✅ 检测到 PDF 政策原文，优先使用 PDF 内容 ({len(pdf_result['pdf_content'])} 字)")
             raw_text = pdf_result["pdf_content"]
             pdf_download_url = pdf_result["source_pdf_url"]
-        elif pdf_result["pdf_links"]:
-            # 即使没用 PDF 内容，也记录下载链接
-            pdf_download_url = pdf_result["pdf_links"][0]["url"]
+            content_source = "pdf"
+        else:
+            # Fallback: 抓取网页内容
+            if stage_callback: stage_callback("📖 未找到 PDF，正在读取网页内容...", 20)
+            raw_text = self.scrape_url(url)
+            content_source = "webpage"
+            # 仍记录 PDF 链接（如果存在）
+            if pdf_result["pdf_links"]:
+                pdf_download_url = pdf_result["pdf_links"][0]["url"]
+                print(f"⚠️ 发现 PDF 链接但解析失败，使用网页内容: {pdf_download_url[:60]}...")
         
         if not raw_text:
             return {"error": "无法获取网页或PDF内容"}
@@ -174,6 +181,7 @@ class PolicyAnalyzer:
                 result["pdf_download_url"] = pdf_download_url
             
             # 注入原始采集快照 (Debug 用)
+            result["debug_content_source"] = content_source  # "pdf" 或 "webpage"
             result["debug_raw_text"] = raw_text[:2000] + ("..." if len(raw_text) > 2000 else "")
             result["debug_citations"] = original_citations
                 
